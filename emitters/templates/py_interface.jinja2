@@ -1,0 +1,331 @@
+import cobs
+import ctypes
+from threading import Event, Thread, Lock
+from Queue import Queue
+
+import time
+import cPickle as pickle
+
+_ctypes_map = {
+    'u32': ctypes.c_uint32,
+    's32': ctypes.c_int32,
+    'u16': ctypes.c_uint16,
+    's16': ctypes.c_int16,
+    'u8': ctypes.c_uint8,
+    's8': ctypes.c_int8,
+}
+
+{% for msg in messages %}
+{{msg.name.upper()}}_ID = {{msg.msg_id}}
+{% endfor %}
+
+def _encode_integer_to_bitvec(n, d_type):
+    """
+    Returns a list containing the encoded integer
+    @param n the integer to encode
+    @param d_type the integer type
+    """
+
+    #Don't waste our time encoding bytes
+    if d_type[-1] == '8':
+        return [n]
+
+    dst = []
+
+    while n > 0:
+        v = n % 128
+        n /= 128
+
+        if n > 0:
+            v |= 0x80
+
+        dst.append(v)
+
+    # We need to handle the case where n == 0
+    if len(dst) == 0:
+        dst.append(0)
+
+    return dst
+    
+def _decode_bitvec_from_list(lst, d_type):
+    """
+    Returns a tuple containing the first decoded integer and
+    the remainder of the input list
+    @param lst the input list
+    @param d_type Type of integer to be decoded
+    """
+    ls = list(lst)
+
+    digit = ls.pop(0)
+
+    #We don't waste time encoding and decoding single bytes as they
+    #are, by nature about as small as they can get (and aren't
+    #affected by machine endianness)
+    if d_type in ['u8', 's8']:
+        return _ctypes_map[d_type](digit).value, ls
+
+    #If this is larger than a single byte, build up the integer
+    mul = 1
+    un_int = 0
+    while not (digit & 128) == 0:
+        un_int += (digit & 127) * mul
+        mul *= 128
+        digit = ls.pop(0)
+
+    #Recast the integer as the appropriate type and return it and the
+    #list remainder
+    return _ctypes_map[d_type](un_int).value, ls
+
+class _XBVCMessage(object):
+    def __init__(self):
+        pass
+
+    def decode(self, pkt):
+        ls = pkt[:]
+
+
+        for m in self._key:
+            if m['len'] == 1:
+                v, ls = _decode_bitvec_from_list(ls, m['type'])
+
+            else:
+                v = []
+                for f in range(m['len']):
+                    vtemp, ls = _decode_bitvec_from_list(ls, m['type'])
+                    v.append(vtemp)
+            self.__dict__[m['name']] = v
+
+    def encode(self):
+        ls = []
+
+        for m in self._key:
+            if m['len'] == 1:
+                ls.extend(_encode_integer_to_bitvec(self.__dict__[m['name']], m['type']))
+            else:
+                for f in range(m['len']):
+                    ls.extend(_encode_integer_to_bitvec(self.__dict__[m['name']][f], m['type']))
+
+        return ls
+
+
+{% for msg in messages%}
+class {{msg.name}}(_XBVCMessage):
+    def __init__(self, msg_pkt=None):
+        super({{msg.name}}, self).__init__()
+        self.msg_id = {{msg.msg_id}}
+        {% for m in msg.members %}
+	  {% if m.d_len == 1 %}
+	self.{{m.name}} = 0
+	  {% else %}
+	self.{{m.name}} = [0 for x in range({{m.d_len}})]
+	  {% endif %}
+        {% endfor %}
+
+	self._key = [
+	    {% for m in msg.members %}
+	    {'name':"{{m.name}}", 'len':{{m.d_len}}, 'type':'{{m.d_type}}'},
+	    {% endfor %}
+	]
+        if msg_pkt:
+            self.decode(msg_pkt)
+
+    def __str__(self):
+        st = "-- {{msg.name}} -- \n"
+        {% for m in msg.members%}
+        st += "-{{m.name}}={}\n".format(self.{{m.name}})
+        {% endfor %}
+        return st + '\n'
+
+{% endfor %}
+
+#TODO: Message map
+_msg_map = {
+    {% for msg in messages %}
+    {{msg.msg_id}}:{{msg.name}},
+    {% endfor %}
+}
+
+
+class XBVCEdgePoint(object):
+    def __init__(self):
+        self.timeout_ms = 250
+        self._stop_event = Event()
+        self._stop_event.set()
+
+        self._recv_thread_handle = None
+        self._outbound_q = Queue()
+
+        self._handlers = {}
+        self._sync_q = Queue()
+        self._sync_evt = Event()
+        self._sync_type = None
+
+        self._send_lock = Lock()
+
+    #These are implemented by child classes
+    def connect(self):
+        pass
+
+    def disconnect(self):
+        pass
+
+    #Read should return a list and be non blocking
+    def _read(self, length):
+        pass
+
+    #Write should accept a list
+    def _write(self, data):
+        pass
+
+    #The receive thread runs constantly in the background.  As messages
+    #are received, they are published
+    # The thread ceases to be when the stop event is called
+    def _recv_thread(self):
+        buf = []
+        while not self._stop_event.is_set():
+            c = self._read(1)
+            if not c:
+                continue
+
+            c = c[0]
+            if not c == 0:
+                buf.append(c)
+            else:
+                enc_envelope = cobs.cobs_decode(buf)
+
+                msg_id, enc_msg = _decode_bitvec_from_list(enc_envelope, 'u32')
+
+                m = _msg_map[msg_id](enc_msg)
+                self._publish_msg(m)
+                buf = []
+
+    def _dispatch_thread(self):
+        while not self._stop_event.is_set():
+            if self._outbound_q.empty():
+                continue
+
+            pkt = self._outbound_q.get()
+
+            self._write(pkt)
+
+    def start(self):
+        if self._recv_thread_handle:
+            return
+
+        self._recv_thread_handle = Thread(target=self._recv_thread)
+        self._dispatch_thread_handle = Thread(target=self._dispatch_thread)
+
+        self._stop_event.clear()
+        self._recv_thread_handle.daemon = True
+        self._dispatch_thread_handle.daemon = True
+        
+        self._recv_thread_handle.start()
+        self._dispatch_thread_handle.start()
+
+    def stop(self):
+        self._stop_event.set()
+
+        self._recv_thread_handle.join()
+        self._recv_thread_handle = None
+        self._dispatch_thread_handle.join()
+        self._dispatch_thread_handle = None
+
+    def send(self, msg, expected_response_type = None):
+        if not isinstance(msg, _XBVCMessage):
+            raise TypeError("msg must be an XBVC Message")
+
+        self._send_lock.acquire()
+
+        if not expected_response_type == None:
+            self._sync_evt.set()
+            self._sync_type = expected_response_type
+
+            with self._sync_q.mutex:
+                self._sync_q.queue.clear()
+
+        env = _encode_integer_to_bitvec(msg.msg_id, 'u32')
+     
+        env.extend(msg.encode())
+     
+        dat = cobs.cobs_encode(env)
+
+        #We bookend packets with a '0' as a delimiter
+        self._outbound_q.put(dat+[0])
+
+        ret = None
+
+        if not expected_response_type == None:
+            try:
+                ret = self._sync_q.get(timeout=self.timeout_ms / 1000.)
+            except:
+                pass
+
+        self._send_lock.release()
+        return ret
+
+    def register_handler(self, fn, msg_id):
+        if not msg_id in self._handlers.keys():
+            self._handlers[msg_id] = []
+
+        self._handlers[msg_id].append(fn)
+
+    def _publish_msg(self, msg):
+        if msg.msg_id in self._handlers.keys():
+            for fn in self._handlers[msg.msg_id]:
+                fn(msg)
+
+        if self._sync_evt.is_set() and msg.msg_id == self._sync_type:
+            self._sync_q.put(msg)
+            self._sync_evt.clear()
+            self._sync_type = None
+
+class XBVCLoopbackEP(XBVCEdgePoint):
+    def __init__(self):
+        super(XBVCLoopbackEP, self).__init__()
+
+        self._q = Queue()
+
+    def connect(self):
+        pass
+
+    def disconnect(self):
+        pass
+
+    def _read(self, length):
+        r = []
+        while length and not self._q.empty():
+            r.append(self._q.get())
+            length -= 1
+
+        if len(r) == 0:
+            return None
+
+        return r
+
+    #Write should accept a list
+    def _write(self, data):
+        for d in data:
+            self._q.put(d)
+
+if __name__ == '__main__':
+    def msg_closure(m):
+        print "Async is sweet!"
+        print m
+
+    msg = {{messages[0].name}}()
+
+    ep = XBVCLoopbackEP()
+
+    ep.connect()
+    ep.start()
+
+    #Test async communication
+    ep.register_handler(msg_closure, {{messages[0].name.upper()}}_ID)
+    ep.send(msg)
+
+
+    #Test Synchronous comms
+    print ep.send(msg, msg.msg_id)
+
+    ep.stop()
+    

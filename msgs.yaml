@@ -1,0 +1,45 @@
+#This is an example Extensible Bit Vector Communication protocol message definition
+
+#Integer types:
+#u32: unsigned 32 bit integer
+#s32: signed 32 bit integer
+#u16: unsigned 16 bit integer
+#s16: signed 16 bit integer
+#u8: unsigned 8 bit integer
+#s8: signed 8 bit integer
+#y[x]: array of type 'y', 'x' members long
+
+#Example enumeration
+get_target: {
+  RPM,
+  TPS,
+  MAP,
+  IAT,
+}
+
+# Example Messages
+# Note that there are two special fields in each command
+# _targets: this specifies which target (i.e. which end of the message pipe)
+# will be responsible for generating this message.  Since this protocol was made
+# with embedded targets in mind, this is important for space savings in the code
+# Note that it is not necessary for all language targets to adhere to this directive
+# _id: This specifies the unique message id and allows for some minor extensibility
+get_command:
+  - _targets: {host}
+  - _id: 0
+  - Target: u32
+  - Fluff: u8[10]
+
+get_response:
+  - _targets: {device}
+  - _id: 1
+  - Error: u32
+  - Target: u32
+  - Index: s16
+  - Result: s32
+
+heartbeat:
+  - _targets: {host, device}
+  - _id: 2
+  - Alive: u32
+
