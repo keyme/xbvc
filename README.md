@@ -10,6 +10,17 @@ throwing it in.
 Messages and Enumerations are defined in YAML using the following
 syntax:
 
+	#This is an example Extensible Bit Vector Communication protocol message definition
+
+	#Integer types:
+	#u32: unsigned 32 bit integer
+	#s32: signed 32 bit integer
+	#u16: unsigned 16 bit integer
+	#s16: signed 16 bit integer
+	#u8: unsigned 8 bit integer
+	#s8: signed 8 bit integer
+	#y[x]: array of type 'y', 'x' members long
+
 	#Example enumeration
 	# enumeration values are parsed in order
 	get_target: {
