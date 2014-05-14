@@ -42,9 +42,9 @@ provide are read/write/init functions, and the individual message
 handlers. (Note: The message handling paradigm varies by language)
 
 For example:
+
 1. In the c implementation, the user must provide: xbvc_platform_init,
    xbvc_platform_write, and xbvc_platform_read
-
 2. in the python implementation, the user must subclass XBVCEdgePoint
    and provide connect, _read, and _write functions (see the generated
    python code for an example that provides a loopback test)
