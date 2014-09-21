@@ -39,14 +39,16 @@ struct x_{{msg.name}} {
 {{p}};
 {% endfor %}
 
-/* XBVC API */
-void xbvc_init(void *params);
-void xbvc_run(void);
+/* Platform handler prototypes */
+typedef int (*xbvc_data_handler)(char *, int);
+typedef void (*xbvc_platform_init_handler)(void*);
 
-/* Platform Stubs */
-/* Implemented by the user to provide internal functionality */
-int xbvc_platform_read(char *dst, int len);
-int xbvc_platform_write(char *src, int len);
-xbvc_platform_init(params);
+/* XBVC API */
+void xbvc_init(void *params,
+	       xbvc_data_handler read,
+	       xbvc_data_handler write,
+	       xbvc_platform_init_handler platform_init);
+
+void xbvc_run(void);
 
 #endif /* XBVC_CORE_H */

@@ -31,6 +31,9 @@ enum enc_sizes {
 	E_64 = 0b100,
 };
 
+xbvc_data_handler xbvc_platform_read = NULL;
+xbvc_data_handler xbvc_platform_write = NULL;
+
 static int xbvc_encode_bit_vector(void *src, uint8_t *dst, uint8_t rt)
 {
 	int idx = 0;
@@ -300,9 +303,13 @@ int xbvc_send(void *msg, int msg_type, int len)
 }
 
 /* xbvc initialization function */
-void xbvc_init(void *params)
+void xbvc_init(void *params, xbvc_data_handler read,
+	       xbvc_data_handler write,
+	       xbvc_platform_init_handler platform_init)
 {
-	xbvc_platform_init(params);
+	xbvc_platform_read = read;
+	xbvc_platform_write = write;
+	platform_init(params);
 }
 
 /* xbvc main task. */
@@ -315,7 +322,10 @@ void xbvc_run(void)
 	char c = 0x00;
 	int res = 0;
 
-	/* Get a single character from the usart */
+	if (xbvc_platform_read == NULL || xbvc_platform_write == NULL)
+		return;
+
+	/* Get a single character from the provided interface */
 	res = xbvc_platform_read((char*)&c, 1);
 
 	/* Go around again if we didn't receive one */
