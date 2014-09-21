@@ -187,7 +187,7 @@ static int xbvc_decode_message(uint8_t *ib,
 			       int len)
 {
 	size_t dec_len;
-	int i, j, ret;
+	int i, ret;
 
 	/* This temporarily holds the data stream after the cobs decode */
 	uint8_t dec_buf[sizeof(struct xbvc_message_envelope) * 2] = {0};
@@ -237,7 +237,7 @@ static int xbvc_decode_message(uint8_t *ib,
 
 		/* Loop through the run, decoding each integer along
 		 * the way */
-		for (j = 0; j < rl; j++) {
+		for (i = 0; i < rl; i++) {
 
 
 			/* If this is not a padding byte, decode it */
