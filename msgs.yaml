@@ -36,10 +36,15 @@ get_response:
   - Error: u32
   - Target: u32
   - Index: s16
+  - Foo: u8
   - Result: s32
+  - Bar: u8
 
 heartbeat:
   - _targets: {host, device}
   - _id: 2
   - Alive: u32
+
+
+
 

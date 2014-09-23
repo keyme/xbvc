@@ -33,7 +33,6 @@ class AlignmentMember(object):
         self.d_type = 'u8'
         self.name = '_align{}'.format(pos)
 
-# TODO: remove packed attribute and add padding fields
 class CStructure:
     def __init__(self, message, msg_id):
         self.name = message.name
@@ -89,11 +88,13 @@ class CStructure:
                     m_len -= 31
 
             new_mem.append(mem)
+
             #If we aren't on an even alignment, add some padding bytes
-            if alignment % 4:
-                msg_ary.append(alignment % 4)
-                new_mem.append(AlignmentMember(alignment % 4, align_count))
-                alignment += alignment % 4
+            if alignment % 4 and mem != self._msg.members[-1]:
+                align_adjust = 4 - (alignment % 4)
+                msg_ary.append(align_adjust)
+                new_mem.append(AlignmentMember(align_adjust, align_count))
+                alignment += align_adjust
                 align_count += 1
 
         self._msg._member_list = new_mem
