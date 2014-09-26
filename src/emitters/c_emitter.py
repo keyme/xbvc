@@ -1,4 +1,4 @@
-from objects import CommSpec, Message, Enum
+from XBVC.objects import CommSpec, Message, Enum
 from jinja2 import FileSystemLoader
 from EmitterBase import SourceFile, Emitter
 

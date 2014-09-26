@@ -19,6 +19,7 @@ _ctypes_map = {
 {{msg.name.upper()}}_ID = {{msg.msg_id}}
 {% endfor %}
 
+
 def _encode_integer_to_bitvec(n, d_type):
     """
     Returns a list containing the encoded integer
@@ -67,10 +68,14 @@ def _decode_bitvec_from_list(lst, d_type):
     #If this is larger than a single byte, build up the integer
     mul = 1
     un_int = 0
-    while not (digit & 128) == 0:
+    done = False
+    while not done:
         un_int += (digit & 127) * mul
         mul *= 128
-        digit = ls.pop(0)
+        if (digit & 128) == 0:
+            done = True
+        else:
+            digit = ls.pop(0)
 
     #Recast the integer as the appropriate type and return it and the
     #list remainder
@@ -82,7 +87,6 @@ class _XBVCMessage(object):
 
     def decode(self, pkt):
         ls = pkt[:]
-
 
         for m in self._key:
             if m['len'] == 1:
@@ -98,6 +102,7 @@ class _XBVCMessage(object):
     def encode(self):
         ls = []
 
+        #Encode the message type
         for m in self._key:
             if m['len'] == 1:
                 ls.extend(_encode_integer_to_bitvec(self.__dict__[m['name']], m['type']))

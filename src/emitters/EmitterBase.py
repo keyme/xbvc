@@ -1,6 +1,7 @@
 import os.path
 from jinja2 import Environment, FileSystemLoader
 import inspect, os
+import os.path
 
 class SourceFile(object):
     def __init__(self, name, content):
@@ -24,9 +25,8 @@ class Emitter(object):
         pass
 
     def expand_template(self, template_name, template_vars = {}):
-        base_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+        base_path = os.path.dirname(__file__)
         tmpl_path = os.path.abspath(os.path.join(base_path, 'templates'))
-
         env = Environment(loader=FileSystemLoader(tmpl_path))
 
         env.trim_blocks = True

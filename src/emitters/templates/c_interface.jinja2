@@ -120,7 +120,7 @@ static int xbvc_validate_run_type(uint8_t rt)
 static int xbvc_encode_message(void *msg,
 			       uint32_t msg_type,
 			       uint8_t *dst,
-			       int dst_len)
+			       size_t dst_len)
 {
 	static uint8_t encbuf[sizeof(struct xbvc_message_envelope) * 2] = {0};
 	uint8_t *bufptr = encbuf;
@@ -128,6 +128,7 @@ static int xbvc_encode_message(void *msg,
 	uint8_t *rlb = NULL;
 	uint8_t *msgptr = (uint8_t*)msg;
 	int ret, i;
+	size_t size_calc = 0;
 
 	/* Make sure we support this message type */
 	if (msg_type > E_MSG_MAX)
@@ -170,6 +171,15 @@ static int xbvc_encode_message(void *msg,
 		}
 		rlb++;
 	}
+	
+	/* Make sure that the encoded message will fit in our
+	 * destination buffer, figure out the maximum number of bytes
+	 * we will see from the cobs encode */
+	size_calc = (size_t)(bufptr - encbuf);
+	size_calc += size_calc/0xff + 1;
+	
+	if ((size_t)(bufptr - encbuf) > dst_len)
+		return -4;
 
 	/* Now that we have the xbv encoded message, cobs encode the
 	 * packet into the destination buffer */
@@ -179,7 +189,7 @@ static int xbvc_encode_message(void *msg,
 	if (ret)
 		return ret;
 	else
-		return -4;
+		return -5;
 }
 
 static int xbvc_decode_message(uint8_t *ib,
@@ -285,7 +295,7 @@ static void xbvc_handle_packet(uint8_t *ib, int len)
 
 }
 
-int xbvc_send(void *msg, int msg_type, int len)
+int xbvc_send(void *msg, uint32_t msg_type)
 {
 	static uint8_t outputbuf[sizeof(struct xbvc_message_envelope) * 2] = {0};
 	int ret;
@@ -296,7 +306,7 @@ int xbvc_send(void *msg, int msg_type, int len)
 		return ret;
 
 	/* The +1 signifies the '0' packet delimiter */
-	ret = xbvc_platform_write((char*)outputbuf, ret + 1);
+	ret = xbvc_platform_write(outputbuf, ret + 1);
 
 	memset(outputbuf, 0x00, sizeof(outputbuf));
 	return ret;
@@ -319,14 +329,14 @@ void xbvc_run(void)
 	static uint8_t inputbuf[sizeof(struct xbvc_message_envelope) * 2] = {0};
 	static uint32_t idx = 0;
 
-	char c = 0x00;
+	uint8_t c = 0x00;
 	int res = 0;
 
 	if (xbvc_platform_read == NULL || xbvc_platform_write == NULL)
 		return;
 
 	/* Get a single character from the provided interface */
-	res = xbvc_platform_read((char*)&c, 1);
+	res = xbvc_platform_read(&c, 1);
 
 	/* Go around again if we didn't receive one */
 	if (res < 1)

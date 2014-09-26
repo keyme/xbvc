@@ -32,7 +32,7 @@ def parse(fil):
 
     return cs
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", "-i", help = "XBVC Definition file")
     parser.add_argument("--output", "-o",
@@ -95,8 +95,6 @@ if __name__ == '__main__':
                 pass
             for fil in emt.generate_source(comspec, args.targets):
                 fil.save_to_disk(src_path)
-            
-        
     
-
-    
+if __name__ == '__main__':
+    main()

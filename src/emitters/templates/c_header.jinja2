@@ -40,7 +40,7 @@ struct x_{{msg.name}} {
 {% endfor %}
 
 /* Platform handler prototypes */
-typedef int (*xbvc_data_handler)(char *, int);
+typedef int (*xbvc_data_handler)(uint8_t *, int);
 typedef void (*xbvc_platform_init_handler)(void*);
 
 /* XBVC API */
@@ -50,5 +50,6 @@ void xbvc_init(void *params,
 	       xbvc_platform_init_handler platform_init);
 
 void xbvc_run(void);
-
+int xbvc_send(void *msg, uint32_t msg_type);
+	
 #endif /* XBVC_CORE_H */
