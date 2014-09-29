@@ -15,7 +15,7 @@ def cobs_encode(data = list()):
     write_index = 1
     code_index = 0
     code = 1
-    output = (len(data) + 1) * [0x00]
+    output = (len(data) + 1 + (len(data) / 255)) * [0x00]
 
     while read_index < len(data):
         if data[read_index] == 0:
