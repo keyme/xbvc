@@ -235,6 +235,9 @@ class XBVCEdgePoint(object):
         self._dispatch_thread_handle.join()
         self._dispatch_thread_handle = None
 
+    def flush(self):
+        self._outbound_q.put([0,0,0,0])
+
     def send(self, msg, expected_response_type = None):
         if not isinstance(msg, _XBVCMessage):
             raise TypeError("msg must be an XBVC Message")
