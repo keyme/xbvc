@@ -188,7 +188,10 @@ class XBVCEdgePoint(object):
     def _recv_thread(self):
         buf = []
         while not self._stop_event.is_set():
-            c = self._read(1)
+            try:
+                c = self._read(1)
+            except:
+                c = None
             if not c:
                 continue
 
