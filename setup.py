@@ -34,5 +34,6 @@ setup(
     ]},
     install_requires=[
           'PyYAML >= 3.10',
+          'Jinja2==2.7.2'
       ],
 )
