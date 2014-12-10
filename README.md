@@ -65,6 +65,10 @@ For example:
 2. pyyaml (via pip)
 3. jinja2 (via pip)
 
+## Installation
+1. Clone repository
+2. run 'python setup.py install' in the project root
+
 ## Use
 1. Create a yaml file containing your messages and enumerations using
    the schema outlined above
