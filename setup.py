@@ -19,9 +19,7 @@ setup(
     url = "https://github.com/Jeff-Ciesielski/XBVC",
     packages=['XBVC', 'XBVC.emitters', 'XBVC.emitters'],
     package_dir={'XBVC': 'src/', 'XBVC.emitters':'src/emitters'},
-    data_files=[('XBVC/emitters/templates',
-                 glob.glob('src/emitters/templates/*')
-             )],
+    package_data={'XBVC.emitters': ['templates/*.*']},
     long_description=read('README.md'),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -33,7 +31,7 @@ setup(
             'xbvcgen = XBVC.xbvcgen:main'
     ]},
     install_requires=[
-          'PyYAML >= 3.10',
-          'Jinja2==2.7.2'
-      ],
+          'pyyaml >= 3.10',
+          'jinja2 == 2.7.2',
+    ],
 )
