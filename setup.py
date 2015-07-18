@@ -18,7 +18,7 @@ setup(
     keywords = "usart communication microcontroller",
     url = "https://github.com/Jeff-Ciesielski/XBVC",
     packages=['XBVC', 'XBVC.emitters', 'XBVC.emitters'],
-    package_dir={'XBVC': 'src/', 'XBVC.emitters':'src/emitters'},
+    package_dir={'XBVC': 'src', 'XBVC.emitters':'src/emitters'},
     package_data={'XBVC.emitters': ['templates/*.*']},
     long_description=read('README.md'),
     classifiers=[
