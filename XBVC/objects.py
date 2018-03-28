@@ -10,7 +10,7 @@ _type_list = [
 
 class DataMember(object):
     def __init__(self, dm):
-        m_tup = dm.items()[0]
+        m_tup = list(dm.items())[0]
         self.name = m_tup[0]
 
         t = m_tup[1].split('[')
@@ -50,10 +50,12 @@ class Message(object):
 
     def _parse_members(self, msg):
         for m in msg:
-            if m.keys()[0] == '_targets':
-                self.targets = m.values()[0].keys()
-            elif m.keys()[0] == '_id':
-                self.msg_id = m.values()[0]
+            keys = list(m.keys())
+            values = list(m.values())
+            if keys[0] == '_targets':
+                self.targets = values[0].keys()
+            elif keys[0] == '_id':
+                self.msg_id = values[0]
             else:
                 self._member_list.append(DataMember(m))
 

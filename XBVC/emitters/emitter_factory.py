@@ -1,4 +1,4 @@
-from _emitter_registry import emitter_registry as er
+from XBVC.emitters._emitter_registry import emitter_registry as er
 
 class EmitterFactory(object):
     def __init__(self):

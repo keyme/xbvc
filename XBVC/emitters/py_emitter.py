@@ -1,5 +1,5 @@
 from XBVC.objects import CommSpec, Message, Enum
-from EmitterBase import SourceFile, Emitter
+from XBVC.emitters.EmitterBase import SourceFile, Emitter
 
 
 class PyEmitter(Emitter):
