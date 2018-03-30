@@ -1,6 +1,6 @@
 from XBVC.objects import CommSpec, Message, Enum
 from jinja2 import FileSystemLoader
-from EmitterBase import SourceFile, Emitter
+from XBVC.emitters.EmitterBase import SourceFile, Emitter
 
 type_map = {
     'u32': 'uint32_t',

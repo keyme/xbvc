@@ -74,12 +74,12 @@ def cobs_decode(data = list()):
 
 if __name__ == '__main__':
     dat = (0x11, 0x00, 0x22, 0x42, 0x00, 0xff)
-    print "Original Length: {0} | {1}".format(len(dat), [hex(x) for x in dat])
+    print("Original Length: {0} | {1}".format(len(dat), [hex(x) for x in dat]))
 
     res = cobs_encode(dat)
-    print "Encoded length:  {0} | {1}".format(len(res), [hex(x) for x in res])
+    print("Encoded length:  {0} | {1}".format(len(res), [hex(x) for x in res]))
 
     dat = list(res)
 
     res = cobs_decode(dat)
-    print "Decoded Length:  {0} | {1}".format(len(res), [hex(x) for x in res])
+    print("Decoded Length:  {0} | {1}".format(len(res), [hex(x) for x in res]))

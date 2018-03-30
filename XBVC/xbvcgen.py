@@ -6,8 +6,8 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
-from objects import CommSpec, Message, Enum
-from emitters import emitter_factory
+from XBVC.objects import CommSpec, Message, Enum
+from XBVC.emitters import emitter_factory
 import argparse
 import os
 import shutil
@@ -46,11 +46,11 @@ def main():
     args = parser.parse_args()
 
     if not args.input:
-        print "Please provide an input file"
+        print("Please provide an input file")
         exit(0)
 
     if not args.targets:
-        print "Please provide autogen target(s)"
+        print("Please provide autogen target(s)")
         exit(0)
 
     comspec = parse(args.input)
@@ -59,17 +59,17 @@ def main():
 
     emitters = []
     if not args.languages:
-        print "No languages specified"
-        print "The following languages are supported:"
+        print("No languages specified")
+        print("The following languages are supported:")
         for lang in ef.supported_languages:
-            print '-{}'.format(lang)
+            print('-{}'.format(lang))
         exit(0)
 
     for lang in args.languages:
         try:
             emitters.append(ef.get_emitter(lang))
         except:
-            print "No emitter found for language: {}".format(lang)
+            print("No emitter found for language: {}".format(lang))
             
     if not args.output:
         exit(0)
@@ -77,7 +77,7 @@ def main():
     if args.output == 'stdout':
         for emt in emitters:
             for fil in emt.generate_source(comspec, args.targets):
-                print fil
+                print(fil)
     else:
         if args.clean and os.path.isdir(args.output):
             shutil.rmtree(args.output)
