@@ -1,10 +1,9 @@
 import cobs
 import ctypes
 from threading import Event, Thread, Lock
-from Queue import Queue
+from queue import Queue
 
 import time
-import cPickle as pickle
 
 _ctypes_map = {
     'u32': ctypes.c_uint32,
@@ -47,7 +46,7 @@ def _encode_integer_to_bitvec(n, d_type):
         dst.append(0)
 
     return dst
-    
+
 def _decode_bitvec_from_list(lst, d_type):
     """
     Returns a tuple containing the first decoded integer and
@@ -119,18 +118,18 @@ class {{msg.name}}(_XBVCMessage):
         super({{msg.name}}, self).__init__()
         self.msg_id = {{msg.msg_id}}
         {% for m in msg.members %}
-	  {% if m.d_len == 1 %}
-	self.{{m.name}} = 0
-	  {% else %}
-	self.{{m.name}} = [0 for x in range({{m.d_len}})]
-	  {% endif %}
+      {% if m.d_len == 1 %}
+        self.{{m.name}} = 0
+      {% else %}
+        self.{{m.name}} = [0 for x in range({{m.d_len}})]
+      {% endif %}
         {% endfor %}
 
-	self._key = [
-	    {% for m in msg.members %}
-	    {'name':"{{m.name}}", 'len':{{m.d_len}}, 'type':'{{m.d_type}}'},
-	    {% endfor %}
-	]
+        self._key = [
+            {% for m in msg.members %}
+            {'name':"{{m.name}}", 'len':{{m.d_len}}, 'type':'{{m.d_type}}'},
+            {% endfor %}
+        ]
         if msg_pkt:
             self.decode(msg_pkt)
 
@@ -226,7 +225,7 @@ class XBVCEdgePoint(object):
         self._stop_event.clear()
         self._recv_thread_handle.daemon = True
         self._dispatch_thread_handle.daemon = True
-        
+
         self._recv_thread_handle.start()
         self._dispatch_thread_handle.start()
 
@@ -255,9 +254,9 @@ class XBVCEdgePoint(object):
                 self._sync_q.queue.clear()
 
         env = _encode_integer_to_bitvec(msg.msg_id, 'u32')
-     
+
         env.extend(msg.encode())
-     
+
         dat = cobs.cobs_encode(env)
 
         #We bookend packets with a '0' as a delimiter
@@ -320,8 +319,8 @@ class XBVCLoopbackEP(XBVCEdgePoint):
 
 if __name__ == '__main__':
     def msg_closure(m):
-        print "Async is sweet!"
-        print m
+        print("Async is sweet!")
+        print(m)
 
     msg = {{messages[0].name}}()
 
@@ -336,7 +335,7 @@ if __name__ == '__main__':
 
 
     #Test Synchronous comms
-    print ep.send(msg, msg.msg_id)
+    print(ep.send(msg, msg.msg_id))
 
     ep.stop()
-    
+

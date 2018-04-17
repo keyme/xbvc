@@ -7,7 +7,7 @@
 
 # Encodes a list or tuple of bytes (data) using COBS
 # Returns the encoded data
-def cobs_encode(data = list()):
+def cobs_encode(data=list()):
     if not type(data) == list and not type(data) == tuple:
         raise TypeError("data must be a list or tuple")
 
@@ -15,7 +15,7 @@ def cobs_encode(data = list()):
     write_index = 1
     code_index = 0
     code = 1
-    output = (len(data) + 1 + (len(data) / 255)) * [0x00]
+    output = (len(data) + 1 + (len(data) // 255)) * [0x00]
 
     while read_index < len(data):
         if data[read_index] == 0:
