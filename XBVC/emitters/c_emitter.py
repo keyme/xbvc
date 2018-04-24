@@ -27,11 +27,14 @@ rl_alignment_map = {
     '64': 8,
 }
 
-class AlignmentMember(object):
-    def __init__(self, length, pos):
-        self.d_len = length
-        self.d_type = 'u8'
-        self.name = '_align{}'.format(pos)
+type_container_map = {
+    'u32': 'E_32',
+    's32': 'E_32',
+    'u16': 'E_16',
+    's16': 'E_16',
+    'u8': 'E_8',
+    's8': 'E_8',
+}
 
 class CStructure:
     def __init__(self, message, msg_id):
@@ -47,7 +50,7 @@ class CStructure:
         for mem in self._msg.members:
         #Get the type and length of the member
             if not mem.d_type in type_map:
-                raise TypeError("Invalid Type: {}".format(t_st))
+                raise TypeError("Invalid Type: {}".format(mem.d_type))
 
             mem_type = type_map[mem.d_type]
 
@@ -89,14 +92,6 @@ class CStructure:
 
             new_mem.append(mem)
 
-            #If we aren't on an even alignment, add some padding bytes
-            if alignment % 4 and mem != self._msg.members[-1]:
-                align_adjust = 4 - (alignment % 4)
-                msg_ary.append(align_adjust)
-                new_mem.append(AlignmentMember(align_adjust, align_count))
-                alignment += align_adjust
-                align_count += 1
-
         self._msg._member_list = new_mem
 
         self.enc_ary = msg_ary
@@ -108,6 +103,76 @@ class CStructure:
         # "\x01\x02\x03\x04\x05"
         rs = '"{}"'.format("".join(["\\x{0:02x}".format(x) for x in self.enc_ary]))
         return rs
+
+    @property
+    def encoder_body(self):
+        result = ""
+        for mem in self._msg.members:
+            print(mem)
+            if int(mem.d_len) > 1:
+                indent = 8
+                container_type = type_container_map[mem.d_type]
+                result += (
+                    '    for (int i = 0; i < {}; i++) {{\n'
+                    .format(mem.d_len)
+                )
+                result += (
+                    "{}index += xbvc_encode_bit_vector(&src->{}[i], &dest[index], {});\n"
+                    .format(' ' * indent, mem.name, container_type)
+                )
+                result += (
+                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
+                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
+                )
+                result += '    }\n'
+            else:
+                indent = 4
+
+                result += (
+                    "{}index += xbvc_encode_bit_vector(&src->{}, &dest[index], {});\n"
+                    .format(' ' * indent, mem.name, 'E_32')
+                )
+                result += (
+                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
+                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
+                )
+
+        return result
+
+    @property
+    def decoder_body(self):
+        result = ""
+        for mem in self._msg.members:
+            print(mem)
+            if int(mem.d_len) > 1:
+                indent = 8
+                container_type = type_container_map[mem.d_type]
+                result += (
+                    '    for (int i = 0; i < {}; i++) {{\n'
+                    .format(mem.d_len)
+                )
+                result += (
+                    "{}index += xbvc_decode_bit_vector(&src[index], &dest->{}[i], {});\n"
+                    .format(' ' * indent, mem.name, container_type)
+                )
+                result += (
+                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
+                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
+                )
+                result += '    }\n'
+            else:
+                indent = 4
+
+                result += (
+                    "{}index += xbvc_decode_bit_vector(&src[index], &dest->{}, {});\n"
+                    .format(' ' * indent, mem.name, 'E_32')
+                )
+                result += (
+                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
+                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
+                )
+
+        return result
 
 
 class CEmitter(Emitter):
