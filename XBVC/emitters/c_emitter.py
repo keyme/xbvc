@@ -108,10 +108,9 @@ class CStructure:
     def encoder_body(self):
         result = ""
         for mem in self._msg.members:
-            print(mem)
+            container_type = type_container_map[mem.d_type]
             if int(mem.d_len) > 1:
                 indent = 8
-                container_type = type_container_map[mem.d_type]
                 result += (
                     '    for (int i = 0; i < {}; i++) {{\n'
                     .format(mem.d_len)
@@ -130,7 +129,7 @@ class CStructure:
 
                 result += (
                     "{}index += xbvc_encode_bit_vector(&src->{}, &dest[index], {});\n"
-                    .format(' ' * indent, mem.name, 'E_32')
+                    .format(' ' * indent, mem.name, container_type)
                 )
                 result += (
                     "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
@@ -143,10 +142,9 @@ class CStructure:
     def decoder_body(self):
         result = ""
         for mem in self._msg.members:
-            print(mem)
+            container_type = type_container_map[mem.d_type]
             if int(mem.d_len) > 1:
                 indent = 8
-                container_type = type_container_map[mem.d_type]
                 result += (
                     '    for (int i = 0; i < {}; i++) {{\n'
                     .format(mem.d_len)
@@ -165,7 +163,7 @@ class CStructure:
 
                 result += (
                     "{}index += xbvc_decode_bit_vector(&src[index], &dest->{}, {});\n"
-                    .format(' ' * indent, mem.name, 'E_32')
+                    .format(' ' * indent, mem.name, container_type)
                 )
                 result += (
                     "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"

@@ -1,8 +1,4 @@
-
-CC = gcc
-
 C_FILES = test.c foo/C/cobs.c foo/C/xbvc_core.c
-
 
 all: test
 .PHONY: clean
