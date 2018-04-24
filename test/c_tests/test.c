@@ -54,8 +54,10 @@ void test_encode_round_trip(void)
     msg.Bar = 0xff;
     print_get_response(&msg);
 
-    int enc_len = xbvc_encode_get_response(&msg, encode_buf, sizeof(encode_buf));
-    int dec_len = xbvc_decode_get_response(encode_buf, &decoded_msg, sizeof(encode_buf));
+    int enc_len = xbvc_encode_get_response(&msg, encode_buf,
+                                           sizeof(encode_buf));
+    int dec_len = xbvc_decode_get_response(encode_buf, &decoded_msg,
+                                           sizeof(encode_buf));
 
     printf("%d | %d\n", enc_len, dec_len);
 
@@ -71,9 +73,7 @@ void test_encode_round_trip(void)
 
     print_get_response(&decoded_msg);
 
-
     assert(memcmp(&msg, &decoded_msg, sizeof(struct x_get_response)) == 0);
-
 }
 
 int main()

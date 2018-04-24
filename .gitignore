@@ -1,1 +1,3 @@
 *.pyc
+/test/c_tests/foo/*
+/test/c_tests/test
