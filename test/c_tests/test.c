@@ -17,14 +17,22 @@ extern int xbvc_decode_get_response(uint8_t *src, struct x_get_response *dest,
 
 void xbvc_handle_get_command(struct x_get_command *msg)
 {
+    XBVCTOUCH(msg);
 }
 
 void xbvc_handle_get_response(struct x_get_response *msg)
 {
+    XBVCTOUCH(msg);
 }
 
 void xbvc_handle_heartbeat(struct x_heartbeat *msg)
 {
+    XBVCTOUCH(msg);
+}
+
+void xbvc_handle_ping(struct x_ping *msg)
+{
+    XBVCTOUCH(msg);
 }
 
 void print_get_response(struct x_get_response *msg)
