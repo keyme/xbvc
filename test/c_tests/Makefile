@@ -1,9 +1,13 @@
-C_FILES = test.c foo/C/cobs.c foo/C/xbvc_core.c
+
+CC = gcc
+
+C_FILES = test.c foo/C/cobs.c foo/C/xbvc_core.c gqueue.c
+
 
 all: test
 .PHONY: clean
 
-CFLAGS = -Wall -Werror -Wextra
+CFLAGS = -Wall -Werror -Wextra -ggdb
 
 foo: msgs.yaml
 	xbvcgen -i $< -o $@ -t host -t device -l c
