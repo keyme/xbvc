@@ -219,6 +219,15 @@ static int xbvc_decode_message(uint8_t *ib,
     return 0;
 }
 
+static void _default_handler(void *msg)
+{
+    XBVCTOUCH(msg);
+}
+
+{% for msg in dec_msgs %}
+void xbvc_handle_{{msg.name}}(struct x_{{msg.name}} *msg) __attribute__((weak, alias("_default_handler")));
+{% endfor %}
+
 /* TODO: Think about moving all autogen sections to their own file */
 static void xbvc_handle_packet(uint8_t *ib, int len)
 {

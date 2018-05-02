@@ -33,22 +33,12 @@ void xbvc_handle_get_command(struct x_get_command *msg)
     got_get = true;
 }
 
-void xbvc_handle_get_response(struct x_get_response *msg)
-{
-    XBVCTOUCH(msg);
-}
-
 void xbvc_handle_heartbeat(struct x_heartbeat *msg)
 {
     XBVCTOUCH(msg);
     printf("Got heartbeat!\n");
     assert(msg->Alive == 0xdeadbeef);
     got_heartbeat = true;
-}
-
-void xbvc_handle_ping(struct x_ping *msg)
-{
-    XBVCTOUCH(msg);
 }
 
 void print_get_response(struct x_get_response *msg)
