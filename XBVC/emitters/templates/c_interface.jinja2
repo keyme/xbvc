@@ -122,7 +122,8 @@ static int xbvc_encode_message(void *msg,
     static uint8_t encbuf[sizeof(struct xbvc_message_envelope) * 2] = {0};
     uint8_t *bufptr = encbuf;
     uint8_t *msgptr = (uint8_t*)msg;
-    int ret, enc_res;
+    int ret;
+    int enc_res = 0;
     size_t size_calc = 0;
 
     /* Make sure we support this message type */
