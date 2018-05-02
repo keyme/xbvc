@@ -28,3 +28,7 @@ heartbeat:
   - _targets: {host, device}
   - _id: 2
   - Alive: u32
+
+ping:
+  - _targets: {host, device}
+  - _id: 3

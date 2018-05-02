@@ -93,6 +93,9 @@ static int xbvc_decode_bit_vector(uint8_t *src, void *dst, uint8_t rt)
 int xbvc_encode_{{msg.name}}(struct x_{{msg.name}} *src, uint8_t *dest,
                              int max_len)
 {
+    XBVCTOUCH(src);
+    XBVCTOUCH(dest);
+    XBVCTOUCH(max_len);
     int index = 0;
 {{msg.encoder_body}}
     return index;
@@ -101,36 +104,15 @@ int xbvc_encode_{{msg.name}}(struct x_{{msg.name}} *src, uint8_t *dest,
 int xbvc_decode_{{msg.name}}(uint8_t *src, struct x_{{msg.name}} *dest,
                              int max_len)
 {
+    XBVCTOUCH(src);
+    XBVCTOUCH(dest);
+    XBVCTOUCH(max_len);
     int index = 0;
 {{msg.decoder_body}}
     return index;
 }
 
 {% endfor %}
-
-
-/* If successful, returns an integer representing how many bytes the
- * target pointer should be incremented by following a succesful bit
- * vecor inflation. Returns -1 on failure */
-static int xbvc_validate_run_type(uint8_t rt)
-{
-    /* TODO: Should we even really encode 8 bit values? */
-    switch (rt) {
-    case E_0:
-        /* Fall through */
-    case E_8:
-        return sizeof(uint8_t);
-    case E_16:
-        return sizeof(uint16_t);
-    case E_32:
-        return sizeof(uint32_t);
-    }
-
-    /* We shouldn't get here, but if we
-     * did, it means that the run type
-     * was invalid */
-    return -1;
-}
 
 static int xbvc_encode_message(void *msg,
 			       uint32_t msg_type,
