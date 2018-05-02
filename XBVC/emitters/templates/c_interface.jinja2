@@ -264,7 +264,9 @@ void xbvc_init(void *params, xbvc_data_handler read,
 {
     xbvc_platform_read = read;
     xbvc_platform_write = write;
-    platform_init(params);
+    if (platform_init != NULL) {
+        platform_init(params);
+    }
 }
 
 /* xbvc main task. */
