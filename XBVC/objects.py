@@ -8,6 +8,35 @@ _type_list = [
     's8',
 ]
 
+
+def camel_string(st):
+    """Given a string st containing underscores, returns a string in which
+    the first letter is lower case, all underscores are removed, and
+    the letter following any underscore is capitalized.
+    """
+    # Make the first letter lowercase
+    new_str = ""
+    caps = False
+    for c in st:
+        if c == '_':
+            caps = True
+            continue
+        new_str += c.upper() if caps else c
+        caps = False
+    return new_str[0].lower() + new_str[1:]
+
+
+def pascal_string(st):
+    """Given a string st containing underscores, returns a string in which
+    the first letter is upper case, all underscores are removed, and
+    the letter following any underscore is capitalized.
+    """
+    result = ""
+    cstr = camel_string(st)
+    result += cstr[0].upper() + cstr[1:]
+    return result
+
+
 class DataMember(object):
     def __init__(self, dm):
         m_tup = list(dm.items())[0]
@@ -30,6 +59,14 @@ class DataMember(object):
             self.d_len = t[1]
         else:
             self.d_len = 1
+
+    @property
+    def pascal_name(self):
+        return pascal_string(self.name)
+
+    @property
+    def camel_name(self):
+        return camel_string(self.name)
 
     def __str__(self):
         rs = 'Data Member: {}\n'.format(self.name)
@@ -64,6 +101,14 @@ class Message(object):
 
     def __str__(self):
         return self.name
+
+    @property
+    def pascal_name(self):
+        return pascal_string(self.name)
+
+    @property
+    def camel_name(self):
+        return camel_string(self.name)
 
     @property
     def members(self):

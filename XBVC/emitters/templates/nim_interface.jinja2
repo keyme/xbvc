@@ -1,0 +1,177 @@
+import cobs
+import bitvec
+import options
+import threadpool
+import tables
+
+type
+  u32* = uint32
+  s32* = int32
+  u16* = uint16
+  s16* = int16
+  u8* = uint8
+  s8* = int8
+
+type
+  XBVCMessageType* = enum
+{% for msg in messages %}
+    xm{{msg.pascal_name}} = {{msg.msg_id}},
+{% endfor %}
+
+  XBVCMessageBase = object of RootObj
+
+{% for msg in messages %}
+  {{msg.pascal_name}}Message* = ref object of XBVCMessageBase
+    {% for m in msg.members %}
+      {% if m.d_len == 1 %}
+    {{m.camel_name}}*: {{m.d_type}}
+      {% else %}
+    {{m.camel_name}}*: array[0..{{m.d_len|int - 1}}, {{m.d_type}}]
+    {% endif %}
+    {% endfor %}
+{% endfor %}
+
+  XBVCMessage* = ref object
+    case kind: XBVCMessageType
+{% for msg in messages %}
+    of xm{{msg.pascal_name}}:
+      {{msg.name.lower()}}*: {{msg.pascal_name}}Message
+{% endfor %}
+
+
+{% for msg in messages %}
+proc `==`*(a, b: {{msg.pascal_name}}Message): bool =
+  {% for m in msg.members %}
+  {% if m.d_len == 1 %}
+  if a.{{m.camel_name}} != b.{{m.camel_name}}:
+    return false
+  {% else %}
+  for idx in 0..a.{{m.camel_name}}.high:
+    if a.{{m.camel_name}}[idx] != b.{{m.camel_name}}[idx]:
+      return false
+  {% endif %}
+  {% endfor %}
+
+  return true
+
+proc serialize{{msg.pascal_name}}*(m: {{msg.pascal_name}}Message): seq[byte] =
+  result = bitvec.encode(xm{{msg.pascal_name}}.uint)
+  {% for m in msg.members %}
+  {% if m.d_len == 1 %}
+  result &= bitvec.encode(m.{{m.camel_name}})
+  {% else %}
+  for val in m.{{m.camel_name}}:
+    result &= bitvec.encode(val)
+  {% endif %}
+  {% endfor %}
+
+proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Message] =
+  var resObj = {{msg.pascal_name}}Message()
+  var rem = @s
+
+  {% for m in msg.members %}
+  {% if m.d_len == 1 %}
+  var decRes{{loop.index}}: Option[{{m.d_type}}]
+  (decRes{{loop.index}}, rem) = bitvec.decode[{{m.d_type}}](rem)
+  if decRes{{loop.index}}.isNone():
+    return
+  resObj.{{m.camel_name}} = decRes{{loop.index}}.get()
+  {% else %}
+  var decRes{{loop.index}}: Option[{{m.d_type}}]
+  for idx in 0..resObj.{{m.camel_name}}.high:
+    (decRes{{loop.index}}, rem) = bitvec.decode[{{m.d_type}}](rem)
+    if decRes{{loop.index}}.isNone():
+      return
+    resObj.{{m.camel_name}}[idx] = decRes{{loop.index}}.get()
+  {% endif %}
+  {% endfor %}
+  result = some(resObj)
+
+{% endfor %}
+
+type
+  XBVCCallback* = proc(msg: XBVCMessage)
+  XBVCCallbackTable = Table[XBVCMessageType, XBVCCallback]
+  XBVCEdgePoint* = ref object
+    rxChan*: Channel[Option[byte]]
+    txChan*: Channel[Option[byte]]
+    callbacks: XBVCCallbackTable
+
+proc newEdgePoint*(): XBVCEdgePoint =
+  new(result)
+  result.callbacks = initTable[XBVCMessageType, XBVCCallback]()
+
+
+
+proc registerCallback*(ep: XBVCEdgePoint, msgType: XBVCMessageType, cb: XBVCCallback) =
+  # TODO: Allow multiple callbacks?  Throw an error? TBD
+  ep.callbacks[msgType] = cb
+
+proc decodeMessage(input: seq[byte], msgID: XBVCMessageType): Option[XBVCMessage] =
+  var msg: XBVCMessage
+  case msgID
+{% for msg in messages %}
+  of xm{{msg.pascal_name}}:
+    let innerMsg: Option[{{msg.pascal_name}}Message] = input.deserialize{{msg.pascal_name}}()
+    if innerMsg.isNone():
+      return
+    msg = XBVCMessage(kind:xm{{msg.pascal_name}}, {{msg.name.lower()}}:innerMsg.get())
+    result = some(msg)
+{% endfor %}
+
+proc rxLoop(ch: ptr Channel[Option[byte]], callbacks: XBVCCallbackTable) =
+  var buf: seq[byte] = @[]
+  while true:
+    let rune = ch[].recv()
+    if rune.isNone:
+      return
+    buf.add(rune.get())
+    if buf[^1] != 0.byte:
+      continue
+
+    buf = cobs.decode(buf)
+    var msgID: Option[uint32]
+    (msgID, buf) = bitvec.decode[uint32](buf)
+    if msgID.isNone():
+      echo "Got corrupt message"
+      buf = @[]
+      continue
+
+    let msgWrapper = decodeMessage(buf, msgID.get().XBVCMessageType)
+
+    if msgWrapper.isNone():
+      echo "Unable to decode message"
+
+    let msg = msgWrapper.get()
+
+    callbacks[msg.kind](msg)
+    buf = @[]
+
+proc send(ep: XBVCEdgePoint, buf: seq[byte]) =
+  let data = cobs.encode(buf)
+  for d in data:
+    ep.txChan.send(some(d))
+
+# TODO: Rethink this
+{% for msg in messages %}
+proc send*(ep: XBVCEdgePoint, msg: {{msg.pascal_name}}Message) =
+  let data = msg.serialize{{msg.pascal_name}}()
+  ep.send(data)
+{% endfor %}
+
+proc start*(ep: XBVCEdgePoint) =
+  ep.rxChan.open()
+  ep.txChan.open()
+  spawn rxLoop(ep.rxChan.addr, ep.callbacks)
+
+proc stop*(ep: XBVCEdgePoint) =
+  ep.rxChan.close()
+  ep.txChan.close()
+
+when isMainModule:
+  let msg = {{messages[0].pascal_name}}Message()
+  let serData = msg.serialize{{messages[0].pascal_name}}()
+  let desMsg = serData.deserialize{{messages[0].pascal_name}}()
+  assert desMsg.isSome()
+  assert msg == desMsg.get()
+  echo "Sanity Tests Passed"
