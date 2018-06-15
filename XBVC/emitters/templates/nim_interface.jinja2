@@ -37,6 +37,7 @@ type
     of xm{{msg.pascal_name}}:
       {{msg.name.lower()}}*: {{msg.pascal_name}}Message
 {% endfor %}
+    else: discard
 
 
 {% for msg in messages %}
