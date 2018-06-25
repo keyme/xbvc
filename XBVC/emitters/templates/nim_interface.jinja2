@@ -3,6 +3,12 @@ import bitvec
 import options
 import threadpool
 import tables
+import rlocks
+import os
+
+const
+  ResponsePollMS = 125
+  ResponseTimeout = 1000
 
 type
   u32* = uint32
@@ -55,7 +61,7 @@ proc `==`*(a, b: {{msg.pascal_name}}Message): bool =
 
   return true
 
-proc serialize{{msg.pascal_name}}*(m: {{msg.pascal_name}}Message): seq[byte] =
+proc serialize*(m: {{msg.pascal_name}}Message): seq[byte] =
   result = bitvec.encode(xm{{msg.pascal_name}}.uint)
   {% for m in msg.members %}
   {% if m.d_len == 1 %}
@@ -97,12 +103,17 @@ type
     rxChan*: Channel[Option[byte]]
     txChan*: Channel[Option[byte]]
     callbacks: XBVCCallbackTable
+    responseChan: Channel[XBVCMessage]
+    responseLock: RLock
+    expectedResponse: Channel[XBVCMessageType]
+
 
 proc newEdgePoint*(): XBVCEdgePoint =
   new(result)
   result.callbacks = initTable[XBVCMessageType, XBVCCallback]()
-
-
+  result.responseChan.open()
+  result.expectedResponse.open(1)
+  initRLock(result.responseLock)
 
 proc registerCallback*(ep: XBVCEdgePoint, msgType: XBVCMessageType, cb: XBVCCallback) =
   # TODO: Allow multiple callbacks?  Throw an error? TBD
@@ -120,7 +131,8 @@ proc decodeMessage(input: seq[byte], msgID: XBVCMessageType): Option[XBVCMessage
     result = some(msg)
 {% endfor %}
 
-proc rxLoop(ch: ptr Channel[Option[byte]], callbacks: XBVCCallbackTable) =
+proc rxLoop(ch: ptr Channel[Option[byte]], callbacks: XBVCCallbackTable,
+            rspChan: ptr Channel[XBVCMessage], expectedResponse: ptr Channel[XBVCMessageType]) =
   var buf: seq[byte] = @[]
   while true:
     let rune = ch[].recv()
@@ -145,7 +157,18 @@ proc rxLoop(ch: ptr Channel[Option[byte]], callbacks: XBVCCallbackTable) =
 
     let msg = msgWrapper.get()
 
-    callbacks[msg.kind](msg)
+    var
+      awaitingResponse = false
+      responseType: XBVCMessageType
+
+    (awaitingResponse, responseType) = expectedResponse[].tryRecv()
+
+    if awaitingResponse and responseType == msg.kind:
+      rspChan[].send(msg)
+    else:
+      if awaitingResponse:
+        expectedResponse[].send(responseType)
+      callbacks[msg.kind](msg)
     buf = @[]
 
 proc send(ep: XBVCEdgePoint, buf: seq[byte]) =
@@ -153,17 +176,41 @@ proc send(ep: XBVCEdgePoint, buf: seq[byte]) =
   for d in data:
     ep.txChan.send(some(d))
 
-# TODO: Rethink this
-{% for msg in messages %}
-proc send*(ep: XBVCEdgePoint, msg: {{msg.pascal_name}}Message) =
-  let data = msg.serialize{{msg.pascal_name}}()
+proc send*[T](ep: XBVCEdgePoint, msg: T) =
+  let data = serialize(msg)
   ep.send(data)
-{% endfor %}
+
+proc sendWithResponse*[T](ep: XBVCEdgePoint, msg: T, responseType: XBVCMessageType): Option[XBVCMessage] =
+  var respChan: Channel[XBVCMessage]
+  respChan.open()
+
+  withRLock(ep.responseLock):
+    # This will be set to None by the receive thread to avoid stuffing
+    # extra responses into the channel
+    ep.expectedResponse.send(responseType)
+    let data = serialize(msg)
+    ep.send(data)
+    var
+      dataAvailable = false
+      response: XBVCMessage
+      elapsedTime = 0
+
+    while not dataAvailable and elapsedTime < ResponseTimeout:
+      sleep(ResponsePollMS)
+      elapsedTime += ResponsePollMS
+      (dataAvailable, response) = tryRecv(ep.responseChan)
+
+    if not dataAvailable:
+      # Since the default option is "None", we can just bail
+      return
+
+    result = some(response)
+
 
 proc start*(ep: XBVCEdgePoint) =
   ep.rxChan.open()
   ep.txChan.open()
-  spawn rxLoop(ep.rxChan.addr, ep.callbacks)
+  spawn rxLoop(ep.rxChan.addr, ep.callbacks, ep.responseChan.addr, ep.expectedResponse.addr)
 
 proc stop*(ep: XBVCEdgePoint) =
   ep.rxChan.close()
