@@ -176,7 +176,7 @@ static int xbvc_decode_message(uint8_t *ib,
 			       int len)
 {
     size_t dec_len;
-    int ret, dec_res;
+    int ret, dec_res = 0;
 
     /* This temporarily holds the data stream after the cobs decode */
     uint8_t dec_buf[sizeof(struct xbvc_message_envelope) * 2] = {0};
