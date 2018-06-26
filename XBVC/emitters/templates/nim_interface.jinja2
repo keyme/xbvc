@@ -213,6 +213,9 @@ proc start*(ep: XBVCEdgePoint) =
   spawn rxLoop(ep.rxChan.addr, ep.callbacks, ep.responseChan.addr, ep.expectedResponse.addr)
 
 proc stop*(ep: XBVCEdgePoint) =
+  ep.txChan.send(none(byte))
+  # Force a context switch to allow the receiving threads to end
+  sleep(0)
   ep.rxChan.close()
   ep.txChan.close()
 
