@@ -18,16 +18,20 @@ def parse(fil):
     cs = CommSpec()
 
     id_map = {}
-    for i in data:
-        if type(data[i]) == dict:
-            m = Enum(data[i], i)
-        elif type(data[i]) == list:
-            m = Message(data[i], i)
-            if not m.msg_id in id_map.keys():
-                id_map[m.msg_id] = m.name
-            else:
-                raise Exception("Messages {} and {} share the same key!"\
-                                .format(m.name, id_map[m.msg_id]))
+    enums = data.get('enumerations', {})
+    messages = data.get('messages', {})
+
+    for enum_name, enum_content in enums.items():
+        m = Enum(enum_content, enum_name)
+        cs.add_member(m)
+
+    for message_name, message_content in messages.items():
+        m = Message(message_content, message_name)
+        if not m.msg_id in id_map.keys():
+            id_map[m.msg_id] = m.name
+        else:
+            raise Exception("Messages {} and {} share the same key!"
+                            .format(m.name, id_map[m.msg_id]))
         cs.add_member(m)
 
     return cs
@@ -70,7 +74,7 @@ def main():
             emitters.append(ef.get_emitter(lang))
         except:
             print("No emitter found for language: {}".format(lang))
-            
+
     if not args.output:
         exit(0)
 
@@ -95,6 +99,6 @@ def main():
                 pass
             for fil in emt.generate_source(comspec, args.targets):
                 fil.save_to_disk(src_path)
-    
+
 if __name__ == '__main__':
     main()

@@ -1,34 +1,34 @@
 #This is an example Extensible Bit Vector Communication protocol message definition
 
-get_target: {
-  RPM,
-  TPS,
-  MAP,
-  IAT,
-}
+enumerations:
+  get_target:
+    - RPM
+    - TPS
+    - MAP
+    - IAT
 
-# Messages
-get_command:
-  - _targets: {host, device}
-  - _id: 0
-  - Target: u32
-  - Fluff: u8[10]
-
-get_response:
-  - _targets: {host, device}
-  - _id: 1
-  - Error: u32
-  - Target: u32
-  - Index: s16
-  - Foo: u8
-  - Result: s32
-  - Bar: u8
-
-heartbeat:
-  - _targets: {host, device}
-  - _id: 2
-  - Alive: u32
-
-ping:
-  - _targets: {host, device}
-  - _id: 0xdeadbeef
+messages:
+  get_command:
+    - _targets: {host, device}
+    - _id: 0
+    - Target: u32
+    - Fluff: u8[10]
+  
+  get_response:
+    - _targets: {host, device}
+    - _id: 1
+    - Error: u32
+    - Target: u32
+    - Index: s16
+    - Foo: u8
+    - Result: s32
+    - Bar: u8
+  
+  heartbeat:
+    - _targets: {host, device}
+    - _id: 2
+    - Alive: u32
+  
+  ping:
+    - _targets: {host, device}
+    - _id: 0xdeadbeef
