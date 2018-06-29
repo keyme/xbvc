@@ -15,5 +15,6 @@ class NimEmitter(Emitter):
 
     def _generate_interface(self):
         src = self.expand_template('nim_interface.jinja2',
-                                   {'messages': self.cs.messages})
+                                   {'messages': self.cs.messages,
+                                    'enumerations': self.cs.enums})
         return SourceFile('xbvc.nim', src)
