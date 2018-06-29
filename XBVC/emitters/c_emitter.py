@@ -187,8 +187,8 @@ class CEmitter(Emitter):
 
         self.all_msgs = []
 
-        for idx in range(len(self.cs.messages)):
-            self.all_msgs.append(CStructure(self.cs.messages[idx], idx))
+        for idx, msg in enumerate(self.cs.messages):
+            self.all_msgs.append(CStructure(self.cs.messages[idx], msg.msg_id))
 
         self._verify_targets()
 

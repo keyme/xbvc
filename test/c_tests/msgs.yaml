@@ -31,4 +31,4 @@ heartbeat:
 
 ping:
   - _targets: {host, device}
-  - _id: 3
+  - _id: 0xdeadbeef
