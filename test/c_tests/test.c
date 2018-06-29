@@ -156,11 +156,18 @@ void test_roundtrip_encoding2(void)
     assert(false);
 }
 
+void test_id_integrity(void)
+{
+    assert(E_MSG_PING == 0xdeadbeef);
+    printf("ID Integrity test passed\n");
+}
+
 
 int main()
 {
     test_encode_round_trip();
     test_roundtrip_encoding();
     test_roundtrip_encoding2();
+    test_id_integrity();
     return 0;
 }
