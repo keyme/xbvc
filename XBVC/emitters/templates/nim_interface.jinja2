@@ -19,6 +19,14 @@ type
   s8* = int8
 
 type
+{% for enum in enumerations%}
+  {{enum.pascal_name}}* = enum
+  {% for val in enum.prefixed_camel_vals%}
+    {{val}} = {{loop.index - 1}},
+  {% endfor %}
+
+{% endfor %}
+
   XBVCMessageType* = enum
 {% for msg in messages %}
     xm{{msg.pascal_name}} = {{msg.msg_id}},

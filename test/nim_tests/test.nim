@@ -29,6 +29,11 @@ let cmd = GetCommandMessage()
 cmd.target = 0xdeadbeef.uint32
 cmd.fluff = fluffAry
 
+assert gtRPM == 0.GetTarget
+assert gtTPS == 1.GetTarget
+assert gtMAP == 2.GetTarget
+assert gtIAT == 3.GetTarget
+
 ep.send(cmd)
 
 for _ in 0..1_000_000:

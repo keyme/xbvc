@@ -128,6 +128,21 @@ class Enum(object):
     def enum_pairs(self):
         return zip(self.enm_list, range(len(self.enm_list)))
 
+    @property
+    def value_prefix(self):
+        pas_name = pascal_string(self.name)
+        starts = [x for x in pas_name if x.isupper()]
+        return ''.join(starts).lower()
+
+    @property
+    def prefixed_camel_vals(self):
+        return [camel_string('{}_{}'.format(self.value_prefix, x.lower()))
+                for x in self.enm_list]
+
+    @property
+    def pascal_name(self):
+        return pascal_string(self.name)
+
     def __str__(self):
         st = "enum {}:\n".format(self.name)
         for enm, val in self.enum_pairs:
