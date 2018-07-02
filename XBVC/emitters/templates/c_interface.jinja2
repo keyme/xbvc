@@ -36,8 +36,8 @@ static int xbvc_encode_bit_vector(void *src, uint8_t *dst, uint8_t rt)
 
     switch(rt) {
     case E_8:
-        *dst = *(uint8_t*)src;
-        return 1;
+        val = *(uint8_t*)src;
+        break;
     case E_16:
         val = *(uint16_t*)src;
         break;
