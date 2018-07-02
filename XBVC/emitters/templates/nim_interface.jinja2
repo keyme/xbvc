@@ -5,6 +5,7 @@ import threadpool
 import tables
 import rlocks
 import os
+import strformat
 
 const
   ResponsePollMS = 125
@@ -161,7 +162,9 @@ proc rxLoop(ch: ptr Channel[Option[byte]], callbacks: XBVCCallbackTable,
     let msgWrapper = decodeMessage(buf, msgID.get().XBVCMessageType)
 
     if msgWrapper.isNone():
-      echo "Unable to decode message"
+      echo &"Unable to decode message from buffer: {buf}"
+      buf = @[]
+      continue
 
     let msg = msgWrapper.get()
 
