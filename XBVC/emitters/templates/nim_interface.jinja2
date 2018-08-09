@@ -219,6 +219,8 @@ proc sendWithResponse*[T](ep: XBVCEdgePoint, msg: T, responseType: XBVCMessageTy
 
 
 proc start*(ep: XBVCEdgePoint) =
+  ep.rxChan = Channel[Option[byte]]()
+  ep.txChan = Channel[Option[byte]]()
   ep.rxChan.open()
   ep.txChan.open()
   spawn rxLoop(ep.rxChan.addr, ep.callbacks, ep.responseChan.addr, ep.expectedResponse.addr)
