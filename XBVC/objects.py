@@ -161,7 +161,8 @@ class CommSpec(object):
 
     @property
     def enums(self):
-        return [x for x in self.members if type(x) == Enum]
+        enum_list = [x for x in self.members if type(x) == Enum]
+        return sorted(enum_list, key=lambda x: x.pascal_name)
 
     @property
     def messages(self):
