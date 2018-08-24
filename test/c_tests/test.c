@@ -46,10 +46,11 @@ void print_get_response(struct x_get_response *msg)
     printf("x_get_response:\n");
     printf("Error: 0x%x\n", msg->Error);
     printf("Target: 0x%x\n", msg->Target);
-    printf("Index: 0x%x\n", msg->Index);
+    printf("Index: %d\n", msg->Index);
     printf("Foo: 0x%x\n", msg->Foo);
-    printf("Result: 0x%x\n", msg->Result);
+    printf("Result: %d\n", msg->Result);
     printf("Bar: 0x%x\n", msg->Bar);
+    printf("Version: %f\n", msg->Version);
     printf("-------------------\n");
 
 }
@@ -58,14 +59,15 @@ void test_encode_round_trip(void)
 {
     struct x_get_response msg = {0};
     struct x_get_response decoded_msg = {0};
-    uint8_t encode_buf[128];
+    uint8_t encode_buf[32] = {0};
 
     msg.Error = 0xdeadbeef;
     msg.Target = 0xF00;
-    msg.Index = 0xcafe;
+    msg.Index = -1;
     msg.Foo = 0xa5;
-    msg.Result = 0xbadd00d;
+    msg.Result = -8675309;
     msg.Bar = 0xff;
+    msg.Version = 2.5;
     print_get_response(&msg);
 
     int enc_len = xbvc_encode_get_response(&msg, encode_buf,

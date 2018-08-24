@@ -23,6 +23,7 @@ messages:
     - Foo: u8
     - Result: s32
     - Bar: u8
+    - Version: f32
   
   heartbeat:
     - _targets: {host, device}
