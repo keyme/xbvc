@@ -9,15 +9,8 @@ type_map = {
     's16': 'int16_t',
     'u8': 'uint8_t',
     's8': 'int8_t',
-}
-
-rl_size_map = {
-    # '0' is for padding bytes
-    '0':  0b000,
-    '8':  0b001,
-    '16': 0b010,
-    '32': 0b011,
-    '64': 0b100,
+    'f32': 'float',
+    'f64': 'double'
 }
 
 rl_alignment_map = {
@@ -28,12 +21,16 @@ rl_alignment_map = {
 }
 
 type_container_map = {
+    'u64': 'E_64',
+    's64': 'E_64',
     'u32': 'E_32',
     's32': 'E_32',
     'u16': 'E_16',
     's16': 'E_16',
     'u8': 'E_8',
     's8': 'E_8',
+    'f32': 'E_32',
+    'f64': 'E_64'
 }
 
 class CStructure:
@@ -43,7 +40,6 @@ class CStructure:
         self._msg = message
         self.msg_id = msg_id
 
-        self._generate_encode_array()
         self._get_values()
 
     def _get_values(self):
@@ -60,49 +56,6 @@ class CStructure:
             else:
                 self.value_pairs.append({'type':mem_type,
                                          'field_name': '{}[{}]'.format(mem.name, mem.d_len)})
-
-    def _generate_encode_array(self):
-        msg_ary = []
-        alignment = 0
-        # We build a new member list dynamically to account for
-        # alignment bytes
-        new_mem = []
-        align_count = 0
-
-        for mem in self._msg.members:
-            m_len = int(mem.d_len)
-            rleb = rl_size_map[mem.d_type[1:]] << 5
-            if m_len <=31:
-                #run length encoder byte
-                msg_ary.append(rleb | int(m_len))
-
-                #adjust current alignment
-                alignment += rl_alignment_map[mem.d_type[1:]] * m_len
-            else:
-                #loop through every 31 instances of the member
-                #(2^5 bits) and add them to the list as a separate
-                #run
-                while m_len > 0:
-                    if m_len >= 31:
-                        msg_ary.append(rleb | 31)
-                    else:
-                        msg_ary.append(rleb | m_len)
-                    alignment += rl_alignment_map[mem.d_type[1:]] * m_len
-                    m_len -= 31
-
-            new_mem.append(mem)
-
-        self._msg._member_list = new_mem
-
-        self.enc_ary = msg_ary
-
-    @property
-    def encode_array(self):
-        #This is a little nasty, but basically it takes an array of
-        #integers: [1, 2, 3, 4, 5] and returns a hex string in c:
-        # "\x01\x02\x03\x04\x05"
-        rs = '"{}"'.format("".join(["\\x{0:02x}".format(x) for x in self.enc_ary]))
-        return rs
 
     @property
     def encoder_body(self):
