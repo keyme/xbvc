@@ -16,14 +16,12 @@ struct xbvc_message_envelope {
     union xbvc_msg_union msg;
 };
 
-/* Encoder sizes */
 enum enc_sizes {
-    /* '0' is for padding bytes*/
-    E_0  = 0b000,
-    E_8  = 0b001,
-    E_16 = 0b010,
-    E_32 = 0b011,
-    E_64 = 0b100,
+    E_0,
+    E_8,
+    E_16,
+    E_32,
+    E_64,
 };
 
 xbvc_data_handler xbvc_platform_read = NULL;
@@ -72,8 +70,8 @@ static int xbvc_decode_bit_vector(uint8_t *src, void *dst, uint8_t rt)
         digit = src[idx++];
         switch (rt) {
         case E_8:
-            *(uint8_t*)dst += (uint8_t)digit;
-            return 1;
+            *(uint8_t*)dst += (uint8_t)((digit & 127) * mul);
+            break;
         case E_16:
             *(uint16_t*)dst += (uint16_t)((digit & 127) * mul);
             break;
