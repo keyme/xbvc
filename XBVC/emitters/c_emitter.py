@@ -10,14 +10,6 @@ type_map = {
     'u8': 'uint8_t',
     's8': 'int8_t',
     'f32': 'float',
-    'f64': 'double'
-}
-
-rl_alignment_map = {
-    '8':  1,
-    '16': 2,
-    '32': 4,
-    '64': 8,
 }
 
 type_container_map = {
@@ -30,8 +22,73 @@ type_container_map = {
     'u8': 'E_8',
     's8': 'E_8',
     'f32': 'E_32',
-    'f64': 'E_64'
 }
+
+
+def gen_index_return_check(indent):
+    return (
+        "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
+        .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
+    )
+
+
+def gen_bitvec_encode(indent, name, container_type, is_indexed=False):
+    return (
+        "{}index += xbvc_encode_bit_vector(&src->{}{}, &dest[index], {});\n"
+        .format(' ' * indent,
+                name,
+                '[i]' if is_indexed else '',
+                container_type)
+    )
+
+
+def gen_float_bitvec_encode(indent, name, is_indexed=False):
+    result = (
+        "{indent}sf = split_float(src->{name}{index_marker}, MAX_PRECISION);\n"
+        "{indent}index += xbvc_encode_bit_vector(&sf.whole, &dest[index], E_32);\n"
+        "{idx_check}"
+        "{indent}index += xbvc_encode_bit_vector(&sf.frac, &dest[index], E_32);\n"
+        "{idx_check}"
+        .format(
+            indent=' ' * indent,
+            name=name,
+            index_marker='[i]' if is_indexed else '',
+            idx_check=gen_index_return_check(indent)
+        )
+    )
+
+    return result
+
+
+def gen_bitvec_decode(indent, name, container_type, is_indexed=False):
+    return (
+        "{}index += xbvc_decode_bit_vector(&src[index], &dest->{}{}, {});\n"
+        .format(' ' * indent,
+                name,
+                '[i]' if is_indexed else '',
+                container_type)
+    )
+
+
+def gen_float_bitvec_decode(indent, name, is_indexed=False):
+    result = (
+        "{indent}sf.whole = 0;\n"
+        "{indent}sf.frac = 0;\n"
+        "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.whole, E_32);\n"
+        "{idx_check}"
+        "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.frac, E_32);\n"
+        "{indent}dest->{name}{index_marker} = combine_float(sf);\n"
+        "{idx_check}"
+        .format(
+            indent=' ' * indent,
+            name=name,
+            index_marker='[i]' if is_indexed else '',
+            idx_check=gen_index_return_check(indent)
+        )
+    )
+
+    return result
+
 
 class CStructure:
     def __init__(self, message, msg_id):
@@ -44,7 +101,7 @@ class CStructure:
 
     def _get_values(self):
         for mem in self._msg.members:
-        #Get the type and length of the member
+            #Get the type and length of the member
             if not mem.d_type in type_map:
                 raise TypeError("Invalid Type: {}".format(mem.d_type))
 
@@ -60,6 +117,10 @@ class CStructure:
     @property
     def encoder_body(self):
         result = ""
+        if any([x.d_type == 'f32' for x in self._msg.members]):
+            # Note the single braces here are actual valid C code, NOT
+            # a field delimiter for python's `format` function
+            result += "    struct splitfloat sf = {0};\n    (void)sf;\n"
         for mem in self._msg.members:
             container_type = type_container_map[mem.d_type]
             if int(mem.d_len) > 1:
@@ -68,32 +129,27 @@ class CStructure:
                     '    for (int i = 0; i < {}; i++) {{\n'
                     .format(mem.d_len)
                 )
-                result += (
-                    "{}index += xbvc_encode_bit_vector(&src->{}[i], &dest[index], {});\n"
-                    .format(' ' * indent, mem.name, container_type)
-                )
-                result += (
-                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
-                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
-                )
+                if mem.d_type == 'f32':
+                    result += gen_float_bitvec_encode(indent, mem.name, True)
+                else:
+                    result += gen_bitvec_encode(indent, mem.name, container_type, True)
+                result += gen_index_return_check(indent)
                 result += '    }\n'
             else:
                 indent = 4
-
-                result += (
-                    "{}index += xbvc_encode_bit_vector(&src->{}, &dest[index], {});\n"
-                    .format(' ' * indent, mem.name, container_type)
-                )
-                result += (
-                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
-                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
-                )
+                if mem.d_type == 'f32':
+                    result += gen_float_bitvec_encode(indent, mem.name, False)
+                else:
+                    result += gen_bitvec_encode(indent, mem.name, container_type, False)
+                result += gen_index_return_check(indent)
 
         return result
 
     @property
     def decoder_body(self):
         result = ""
+        if any([x.d_type == 'f32' for x in self._msg.members]):
+            result += "    struct splitfloat sf = {0};\n    (void)sf;\n"
         for mem in self._msg.members:
             container_type = type_container_map[mem.d_type]
             if int(mem.d_len) > 1:
@@ -102,26 +158,19 @@ class CStructure:
                     '    for (int i = 0; i < {}; i++) {{\n'
                     .format(mem.d_len)
                 )
-                result += (
-                    "{}index += xbvc_decode_bit_vector(&src[index], &dest->{}[i], {});\n"
-                    .format(' ' * indent, mem.name, container_type)
-                )
-                result += (
-                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
-                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
-                )
+                if mem.d_type == 'f32':
+                    result += gen_float_bitvec_decode(indent, mem.name, True)
+                else:
+                    result += gen_bitvec_decode(indent, mem.name, container_type, True)
+                result += gen_index_return_check(indent)
                 result += '    }\n'
             else:
                 indent = 4
-
-                result += (
-                    "{}index += xbvc_decode_bit_vector(&src[index], &dest->{}, {});\n"
-                    .format(' ' * indent, mem.name, container_type)
-                )
-                result += (
-                    "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
-                    .format(' ' * indent, ' ' * indent * 2, ' ' * indent)
-                )
+                if mem.d_type == 'f32':
+                    result += gen_float_bitvec_decode(indent, mem.name, False)
+                else:
+                    result += gen_bitvec_decode(indent, mem.name, container_type, False)
+                result += gen_index_return_check(indent)
 
         return result
 

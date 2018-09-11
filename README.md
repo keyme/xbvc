@@ -12,7 +12,8 @@ syntax:
 
 	#This is an example Extensible Bit Vector Communication protocol message definition
 
-	#Integer types:
+	#Field types:
+	#f32: 32 bit floating point ('float' in c)
 	#u32: unsigned 32 bit integer
 	#s32: signed 32 bit integer
 	#u16: unsigned 16 bit integer
@@ -90,6 +91,15 @@ This software, including all language target templates is provided
 under the GPLv2 license.  HOWEVER, all generated code is the property
 of it's respective owner to be licensed however they wish.  Please see
 the LICENSE file for a copy of the GPL.
+
+## A note on Floating Point encoding
+
+XBVC supports 32 bit floating point numbers (ieee-754 single precision
+floats), HOWEVER, they are encoded with 9 BCD digits of precision for
+the fraction/decimal portion of the number and transmitted over the
+wire as integers to avoid ABI incompatability on small MCUs.  Please
+be warned that there may be some small rounding error after the 8th
+decimal digit.
 
 ## TODO
 1. Provide a python package

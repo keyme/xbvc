@@ -13,7 +13,7 @@ messages:
     - _id: 0
     - Target: u32
     - Fluff: u8[10]
-  
+
   get_response:
     - _targets: {host, device}
     - _id: 1
@@ -24,12 +24,18 @@ messages:
     - Result: s32
     - Bar: u8
     - Version: f32
-  
+
   heartbeat:
     - _targets: {host, device}
     - _id: 2
     - Alive: u32
-  
+
   ping:
     - _targets: {host, device}
     - _id: 0xdeadbeef
+
+  test_float:
+    - _targets: {host, device}
+    - _id: 3
+    - f1: f32
+    - f2: f32
