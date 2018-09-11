@@ -20,6 +20,10 @@ extern int xbvc_encode_get_response(struct x_get_response *src, uint8_t *dest,
                                     int max_len);
 extern int xbvc_decode_get_response(uint8_t *src, struct x_get_response *dest,
                                     int max_len);
+extern int xbvc_encode_test_float(struct x_test_float *src, uint8_t *dest,
+                                  int max_len);
+extern int xbvc_decode_test_float(uint8_t *src, struct x_test_float *dest,
+                                  int max_len);
 bool got_heartbeat = false;
 bool got_get = false;
 uint8_t fluffcmp[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
@@ -53,6 +57,14 @@ void print_get_response(struct x_get_response *msg)
     printf("Version: %f\n", msg->Version);
     printf("-------------------\n");
 
+}
+
+void print_test_float(struct x_test_float *msg)
+{
+    printf("x_test_float:\n");
+    printf("f1: 0x%f\n", msg->f1);
+    printf("f2: 0x%f\n", msg->f2);
+    printf("-------------------\n");
 }
 
 void test_encode_round_trip(void)
@@ -165,11 +177,46 @@ void test_id_integrity(void)
 }
 
 
+void test_double_float()
+{
+    struct x_test_float msg = {0};
+    struct x_test_float decoded_msg = {0};
+    uint8_t encode_buf[32] = {0};
+
+    msg.f1 = 2.5;
+    msg.f2 = 3.5;
+    print_test_float(&msg);
+
+    int enc_len = xbvc_encode_test_float(&msg, encode_buf,
+                                         sizeof(encode_buf));
+    int dec_len = xbvc_decode_test_float(encode_buf, &decoded_msg,
+                                         sizeof(encode_buf));
+
+    printf("%d | %d\n", enc_len, dec_len);
+
+    printf("[");
+    for (int i = 0; i < enc_len; i++) {
+        printf("0x%x", encode_buf[i]);
+        if (i < enc_len - 1) {
+            printf(", ");
+        }
+    }
+    printf("]");
+    printf("\n");
+
+    print_test_float(&decoded_msg);
+
+    assert(memcmp(&msg, &decoded_msg, sizeof(struct x_test_float)) == 0);
+    
+}
+
+
 int main()
 {
     test_encode_round_trip();
     test_roundtrip_encoding();
     test_roundtrip_encoding2();
     test_id_integrity();
+    test_double_float();
     return 0;
 }

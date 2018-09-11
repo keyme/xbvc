@@ -20,6 +20,26 @@ proc getCommandCallback(msg: XBVCMessage) =
   assert msg.get_command.fluff == fluffAry
   getCommandTriggered = true
 
+# Test basic serialization
+
+let rsp = GetResponseMessage(error: 123.uint32,
+                             target: 456.uint32,
+                             index: -32.int16,
+                             foo: 128.uint8,
+                             result: -45.int32,
+                             bar: 5.uint8,
+                             version: -1.5)
+
+let encoded = rsp.serialize()
+let decoded = deserializeGetResponse(encoded[1..^1])
+if decoded.isSome():
+  let decInternal = decoded.get()
+  assert decInternal == rsp
+  echo "decoded GetResponse successfully"
+else:
+  echo "Not able to decode"
+
+
 let ep = newEdgePoint()
 ep.registerCallback(xmGetCommand, getCommandCallback)
 ep.start()
@@ -43,4 +63,3 @@ for _ in 0..1_000_000:
 
 echo "Never got get command!"
 quit(-1)
-
