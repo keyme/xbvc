@@ -28,7 +28,12 @@ let rsp = GetResponseMessage(error: 123.uint32,
                              foo: 128.uint8,
                              result: -45.int32,
                              bar: 5.uint8,
-                             version: -1.5)
+                             version: -1.5,
+                             floatList: [1.1.float32,
+                                         2.2.float32,
+                                         3.3.float32,
+                                         4.4.float32,
+                                         5.5.float32])
 
 let encoded = rsp.serialize()
 let decoded = deserializeGetResponse(encoded[1..^1])
