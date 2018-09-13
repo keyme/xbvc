@@ -129,20 +129,22 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Me
   var rem = @s
 
   {% for m in msg.members %}
+    {% if m.d_type == "f32" %}
+  var sf{{loop.index}}: SplitFloat
+    {% endif %}
   {% if m.d_len == 1 %}
     {% if m.d_type == "f32" %}
-  var sf: SplitFloat
   var decRes{{loop.index}}a: Option[s32]
   (decRes{{loop.index}}a, rem) = bitvec.decode[s32](rem)
   if decRes{{loop.index}}a.isNone():
     return
-  sf.whole = decRes{{loop.index}}a.get()
+  sf{{loop.index}}.whole = decRes{{loop.index}}a.get()
   var decRes{{loop.index}}b: Option[u32]
   (decRes{{loop.index}}b, rem) = bitvec.decode[u32](rem)
   if decRes{{loop.index}}b.isNone():
     return
-  sf.frac = decRes{{loop.index}}b.get()
-  resObj.{{m.camel_name}} = combineFloat(sf)
+  sf{{loop.index}}.frac = decRes{{loop.index}}b.get()
+  resObj.{{m.camel_name}} = combineFloat(sf{{loop.index}})
     {% else %}
   var decRes{{loop.index}}: Option[{{m.d_type}}]
   (decRes{{loop.index}}, rem) = bitvec.decode[{{m.d_type}}](rem)
@@ -151,12 +153,26 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Me
   resObj.{{m.camel_name}} = decRes{{loop.index}}.get()
     {% endif %}
   {% else %}
-  var decRes{{loop.index}}: Option[{{m.d_type}}]
   for idx in 0..resObj.{{m.camel_name}}.high:
+    {% if m.d_type == "f32" %}
+    var decRes{{loop.index}}a: Option[s32]
+    var decRes{{loop.index}}b: Option[u32]
+    (decRes{{loop.index}}a, rem) = bitvec.decode[s32](rem)
+    if decRes{{loop.index}}a.isNone():
+      return
+    (decRes{{loop.index}}b, rem) = bitvec.decode[u32](rem)
+    if decRes{{loop.index}}b.isNone():
+      return
+    sf{{loop.index}}.whole = decRes{{loop.index}}a.get()
+    sf{{loop.index}}.frac = decRes{{loop.index}}b.get()
+    resObj.{{m.camel_name}}[idx] = sf{{loop.index}}.combineFloat()
+    {% else %}
+    var decRes{{loop.index}}: Option[{{m.d_type}}]
     (decRes{{loop.index}}, rem) = bitvec.decode[{{m.d_type}}](rem)
     if decRes{{loop.index}}.isNone():
       return
     resObj.{{m.camel_name}}[idx] = decRes{{loop.index}}.get()
+    {% endif %}
   {% endif %}
   {% endfor %}
   result = some(resObj)
