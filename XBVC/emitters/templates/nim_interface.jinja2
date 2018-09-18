@@ -13,16 +13,6 @@ const
   MaxPrecision = 8
 
 type
-  f32* = float32
-  f64* = float64
-  u32* = uint32
-  s32* = int32
-  u16* = uint16
-  s16* = int16
-  u8* = uint8
-  s8* = int8
-
-type
   SplitFloat = object
     whole: int32
     frac: uint32
@@ -47,9 +37,9 @@ type
   {{msg.pascal_name}}Message* = ref object of XBVCMessageBase
     {% for m in msg.members %}
       {% if m.d_len == 1 %}
-    {{m.camel_name}}*: {{m.d_type}}
+    {{m.camel_name}}*: {{m.nim_d_type}}
       {% else %}
-    {{m.camel_name}}*: array[0..{{m.d_len|int - 1}}, {{m.d_type}}]
+    {{m.camel_name}}*: array[0..{{m.d_len|int - 1}}, {{m.nim_d_type}}]
     {% endif %}
     {% endfor %}
 {% endfor %}
@@ -100,6 +90,10 @@ proc combineFloat(s: SplitFloat): float =
 proc `==`*[T: ref XBVCMessageBase](a, b: T): bool =
   a[] == b[]
 
+
+template `$`*[T: ref XBVCMessageBase](a: T): string =
+  $a[]
+
 {% for msg in messages %}
 proc serialize*(m: {{msg.pascal_name}}Message): seq[byte] =
   result = bitvec.encode(xm{{msg.pascal_name}}.uint)
@@ -134,20 +128,20 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Me
     {% endif %}
   {% if m.d_len == 1 %}
     {% if m.d_type == "f32" %}
-  var decRes{{loop.index}}a: Option[s32]
-  (decRes{{loop.index}}a, rem) = bitvec.decode[s32](rem)
+  var decRes{{loop.index}}a: Option[int32]
+  (decRes{{loop.index}}a, rem) = bitvec.decode[int32](rem)
   if decRes{{loop.index}}a.isNone():
     return
   sf{{loop.index}}.whole = decRes{{loop.index}}a.get()
-  var decRes{{loop.index}}b: Option[u32]
-  (decRes{{loop.index}}b, rem) = bitvec.decode[u32](rem)
+  var decRes{{loop.index}}b: Option[uint32]
+  (decRes{{loop.index}}b, rem) = bitvec.decode[uint32](rem)
   if decRes{{loop.index}}b.isNone():
     return
   sf{{loop.index}}.frac = decRes{{loop.index}}b.get()
   resObj.{{m.camel_name}} = combineFloat(sf{{loop.index}})
     {% else %}
-  var decRes{{loop.index}}: Option[{{m.d_type}}]
-  (decRes{{loop.index}}, rem) = bitvec.decode[{{m.d_type}}](rem)
+  var decRes{{loop.index}}: Option[{{m.nim_d_type}}]
+  (decRes{{loop.index}}, rem) = bitvec.decode[{{m.nim_d_type}}](rem)
   if decRes{{loop.index}}.isNone():
     return
   resObj.{{m.camel_name}} = decRes{{loop.index}}.get()
@@ -155,20 +149,20 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Me
   {% else %}
   for idx in 0..resObj.{{m.camel_name}}.high:
     {% if m.d_type == "f32" %}
-    var decRes{{loop.index}}a: Option[s32]
-    var decRes{{loop.index}}b: Option[u32]
-    (decRes{{loop.index}}a, rem) = bitvec.decode[s32](rem)
+    var decRes{{loop.index}}a: Option[int32]
+    var decRes{{loop.index}}b: Option[uint32]
+    (decRes{{loop.index}}a, rem) = bitvec.decode[int32](rem)
     if decRes{{loop.index}}a.isNone():
       return
-    (decRes{{loop.index}}b, rem) = bitvec.decode[u32](rem)
+    (decRes{{loop.index}}b, rem) = bitvec.decode[uint32](rem)
     if decRes{{loop.index}}b.isNone():
       return
     sf{{loop.index}}.whole = decRes{{loop.index}}a.get()
     sf{{loop.index}}.frac = decRes{{loop.index}}b.get()
     resObj.{{m.camel_name}}[idx] = sf{{loop.index}}.combineFloat()
     {% else %}
-    var decRes{{loop.index}}: Option[{{m.d_type}}]
-    (decRes{{loop.index}}, rem) = bitvec.decode[{{m.d_type}}](rem)
+    var decRes{{loop.index}}: Option[{{m.nim_d_type}}]
+    (decRes{{loop.index}}, rem) = bitvec.decode[{{m.nim_d_type}}](rem)
     if decRes{{loop.index}}.isNone():
       return
     resObj.{{m.camel_name}}[idx] = decRes{{loop.index}}.get()

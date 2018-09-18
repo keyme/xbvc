@@ -44,6 +44,7 @@ if decoded.isSome():
 else:
   echo "Not able to decode"
 
+echo rsp
 
 let ep = newEdgePoint()
 ep.registerCallback(xmGetCommand, getCommandCallback)
