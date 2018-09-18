@@ -70,6 +70,20 @@ class DataMember(object):
     def camel_name(self):
         return camel_string(self.name)
 
+    @property
+    def nim_d_type(self):
+        return {
+            'f32': 'float32',
+            'f64': 'float64',
+            'u32': 'uint32',
+            's32': 'int32',
+            'u16': 'uint16',
+            's16': 'int16',
+            'u8': 'uint8',
+            's8': 'int8',
+        }[self.d_type]
+
+
     def __str__(self):
         rs = 'Data Member: {}\n'.format(self.name)
         rs += '-Type: {}\n'.format(self.d_type)
