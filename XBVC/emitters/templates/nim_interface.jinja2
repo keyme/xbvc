@@ -34,7 +34,7 @@ type
   XBVCMessageBase = object of RootObj
 
 {% for msg in messages %}
-  {{msg.pascal_name}}Message* = ref object of XBVCMessageBase
+  {{msg.pascal_name}}Message* = object of XBVCMessageBase
     {% for m in msg.members %}
       {% if m.d_len == 1 %}
     {{m.camel_name}}*: {{m.nim_d_type}}
@@ -44,7 +44,7 @@ type
     {% endfor %}
 {% endfor %}
 
-  XBVCMessage* = ref object
+  XBVCMessage* = object
     case kind: XBVCMessageType
 {% for msg in messages %}
     of xm{{msg.pascal_name}}:

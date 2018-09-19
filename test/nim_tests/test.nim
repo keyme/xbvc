@@ -51,7 +51,7 @@ ep.registerCallback(xmGetCommand, getCommandCallback)
 ep.start()
 spawn feedbackLoop(ep.rxChan.addr, ep.txChan.addr)
 
-let cmd = GetCommandMessage()
+var cmd = GetCommandMessage()
 cmd.target = 0xdeadbeef.uint32
 cmd.fluff = fluffAry
 
