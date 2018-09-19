@@ -3,6 +3,8 @@
 #include <string.h>
 #include <math.h>
 
+#include <stdio.h>
+
 #include "cobs.h"
 #include "xbvc_core.h"
 
@@ -37,6 +39,17 @@ struct splitfloat {
 };
 
 
+/* NOTE: The splitfloat/combine_float functions store floating point
+   numbers as a signed 32 bit whole number, and an unsigned fractional
+   part.  It is important to note that the fractional part is stored
+   in reverse!  This is done to handle leading zeros gracefully.  For
+   example, 0.07 cannot be easily represented this way as the leading
+   0 will be lost.  Instead we store it as 70, and unpack in reverse
+   when converting back to float.  Alternatively, we COULD store an
+   exponent and divide the fractional part by 10^exp, but then we need
+   to store data on the wire to count the exponent.
+*/
+
 struct splitfloat split_float(float v, int dec_points)
 {
     struct splitfloat result;
@@ -50,12 +63,14 @@ struct splitfloat split_float(float v, int dec_points)
         dec_points = MAX_PRECISION;
     }
 
+    uint32_t mul = 1;
     while (dec_points && v) {
-        result.frac *= 10;
         v *= 10;
-        result.frac += (uint32_t)(v);
+        uint32_t addition = (uint32_t)v * mul;
+        result.frac += addition;
         v = v - (uint32_t)(v);
         dec_points--;
+        mul *= 10;
     }
 
     return result;
@@ -65,10 +80,12 @@ float combine_float(struct splitfloat s)
 {
     float result_whole = (float)s.whole;
     float result_frac = 0;
+    uint32_t mul = 10;
     while (s.frac) {
-        result_frac += (float)(s.frac % 10);
-        result_frac /= 10;
+        float addition = (float)(s.frac % 10) / (float)mul;
+        result_frac += addition;
         s.frac /= 10;
+        mul *= 10;
     }
     if (result_whole < 0) {
         result_frac *= -1.0;

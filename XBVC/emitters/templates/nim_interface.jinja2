@@ -63,12 +63,14 @@ proc splitFloat(v: float, precision: int=MaxPrecision): SplitFloat =
 
   precision = max(MaxPrecision, precision)
 
+  var mul = 1
   while precision > 0 and v > 0:
-    result.frac *= 10
     v *= 10
-    result.frac += v.uint32
+    let addition = v.uint32 * mul.uint32
+    result.frac += addition
     v = v - (v.uint32).float
     dec precision
+    mul *= 10
 
 
 proc combineFloat(s: SplitFloat): float =
@@ -76,10 +78,12 @@ proc combineFloat(s: SplitFloat): float =
   var resultFrac = 0.0
   var s = s
 
+  var mul = 10
   while s.frac > 0.uint32:
-    resultFrac += (s.frac mod 10).float
-    resultFrac /= 10
+    let addition = (s.frac mod 10).float / mul.float
+    resultFrac += addition
     s.frac = (s.frac.int / 10.int).uint32
+    mul *= 10
 
   if resultWhole < 0:
     resultFrac *= -1

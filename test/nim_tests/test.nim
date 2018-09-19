@@ -28,7 +28,7 @@ let rsp = GetResponseMessage(error: 123.uint32,
                              foo: 128.uint8,
                              result: -45.int32,
                              bar: 5.uint8,
-                             version: -1.5,
+                             version: 0.07.float32,
                              floatList: [1.1.float32,
                                          2.2.float32,
                                          3.3.float32,
@@ -39,6 +39,8 @@ let encoded = rsp.serialize()
 let decoded = deserializeGetResponse(encoded[1..^1])
 if decoded.isSome():
   let decInternal = decoded.get()
+  echo rsp
+  echo decInternal
   assert decInternal == rsp
   echo "decoded GetResponse successfully"
 else:
