@@ -24,6 +24,9 @@ messages:
     - Result: s32
     - Bar: u8
     - Version: f32
+    - Version2: f32
+    - Version3: f32
+    - Version4: f32
 
   heartbeat:
     - _targets: {host, device}
