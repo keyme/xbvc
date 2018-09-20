@@ -48,7 +48,7 @@ else:
 
 echo rsp
 
-let ep = newEdgePoint()
+var ep = newEdgePoint()
 ep.registerCallback(xmGetCommand, getCommandCallback)
 ep.start()
 spawn feedbackLoop(ep.rxChan.addr, ep.txChan.addr)

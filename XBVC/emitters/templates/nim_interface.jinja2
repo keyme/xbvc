@@ -180,7 +180,7 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Me
 type
   XBVCCallback* = proc(msg: XBVCMessage)
   XBVCCallbackTable = Table[XBVCMessageType, XBVCCallback]
-  XBVCEdgePoint* = ref object
+  XBVCEdgePoint* = object
     rxChan*: Channel[Option[byte]]
     txChan*: Channel[Option[byte]]
     callbacks: XBVCCallbackTable
@@ -190,13 +190,12 @@ type
 
 
 proc newEdgePoint*(): XBVCEdgePoint =
-  new(result)
   result.callbacks = initTable[XBVCMessageType, XBVCCallback]()
   result.responseChan.open()
   result.expectedResponse.open(1)
   initRLock(result.responseLock)
 
-proc registerCallback*(ep: XBVCEdgePoint, msgType: XBVCMessageType, cb: XBVCCallback) =
+proc registerCallback*(ep: var XBVCEdgePoint, msgType: XBVCMessageType, cb: XBVCCallback) =
   # TODO: Allow multiple callbacks?  Throw an error? TBD
   ep.callbacks[msgType] = cb
 
@@ -254,16 +253,16 @@ proc rxLoop(ch: ptr Channel[Option[byte]], callbacks: XBVCCallbackTable,
       callbacks[msg.kind](msg)
     buf = @[]
 
-proc send(ep: XBVCEdgePoint, buf: seq[byte]) =
+proc send(ep: var XBVCEdgePoint, buf: seq[byte]) =
   let data = cobs.encode(buf)
   for d in data:
     ep.txChan.send(some(d))
 
-proc send*[T](ep: XBVCEdgePoint, msg: T) =
+proc send*[T](ep: var XBVCEdgePoint, msg: T) =
   let data = serialize(msg)
   ep.send(data)
 
-proc sendWithResponse*[T](ep: XBVCEdgePoint, msg: T, responseType: XBVCMessageType): Option[XBVCMessage] =
+proc sendWithResponse*[T](ep: var XBVCEdgePoint, msg: T, responseType: XBVCMessageType): Option[XBVCMessage] =
   var respChan: Channel[XBVCMessage]
   respChan.open()
 
@@ -290,14 +289,14 @@ proc sendWithResponse*[T](ep: XBVCEdgePoint, msg: T, responseType: XBVCMessageTy
     result = some(response)
 
 
-proc start*(ep: XBVCEdgePoint) =
+proc start*(ep: var XBVCEdgePoint) =
   ep.rxChan = Channel[Option[byte]]()
   ep.txChan = Channel[Option[byte]]()
   ep.rxChan.open()
   ep.txChan.open()
   spawn rxLoop(ep.rxChan.addr, ep.callbacks, ep.responseChan.addr, ep.expectedResponse.addr)
 
-proc stop*(ep: XBVCEdgePoint) =
+proc stop*(ep: var XBVCEdgePoint) =
   ep.txChan.send(none(byte))
   ep.rxChan.send(none(byte))
 
