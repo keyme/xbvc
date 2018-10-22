@@ -6,6 +6,8 @@ import tables
 import rlocks
 import os
 import strformat
+import queues
+import sequtils
 
 const
   ResponsePollMS = 125
@@ -178,24 +180,55 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Me
 {% endfor %}
 
 type
+  DispatchError* = ref object of Exception
+  DeferredResponse* = ref object of RootObj
+    chan: Channel[XBVCMessage]
   XBVCCallback* = proc(msg: XBVCMessage)
   XBVCCallbackTable = Table[XBVCMessageType, XBVCCallback]
-  XBVCEdgePoint* = object
-    rxChan*: Channel[Option[byte]]
-    txChan*: Channel[Option[byte]]
+  XBVCDispatcher* = object
     callbacks: XBVCCallbackTable
-    responseChan: Channel[XBVCMessage]
     responseLock: RLock
+    responseMap: Table[XBVCMessageType, Queue[DeferredResponse]]
+    responseChan: Channel[XBVCMessage]
     expectedResponse: Channel[XBVCMessageType]
 
+proc newDeferredResponse*(): DeferredResponse =
+  new(result)
+  result.chan.open(1)
 
-proc newEdgePoint*(): XBVCEdgePoint =
+proc close*(bc: DeferredResponse) =
+  bc.chan.close()
+
+proc send(bc: DeferredResponse, msg: XBVCMessage) =
+  bc.chan.send(msg)
+
+proc get*(bc: DeferredResponse, timeout: int = ResponseTimeout): Option[XBVCMessage] =
+  var
+    dataAvailable = false
+    response: XBVCMessage
+    elapsedTime = 0
+
+  while not dataAvailable and elapsedTime < timeout:
+    sleep(ResponsePollMS)
+    elapsedTime += ResponsePollMS
+    (dataAvailable, response) = bc.chan.tryRecv()
+
+  if not dataAvailable:
+    return
+
+  result = some(response)
+
+proc `=destroy`(bc: DeferredResponse) =
+  bc.close()
+
+proc newDispatcher*(): XBVCDispatcher =
   result.callbacks = initTable[XBVCMessageType, XBVCCallback]()
   result.responseChan.open()
   result.expectedResponse.open(1)
   initRLock(result.responseLock)
+  result.responseMap = initTable[XBVCMessageType, Queue[DeferredResponse]]()
 
-proc registerCallback*(ep: var XBVCEdgePoint, msgType: XBVCMessageType, cb: XBVCCallback) =
+proc registerCallback*(ep: var XBVCDispatcher, msgType: XBVCMessageType, cb: XBVCCallback) =
   # TODO: Allow multiple callbacks?  Throw an error? TBD
   ep.callbacks[msgType] = cb
 
@@ -211,99 +244,81 @@ proc decodeMessage(input: seq[byte], msgID: XBVCMessageType): Option[XBVCMessage
     result = some(msg)
 {% endfor %}
 
-proc rxLoop(ch: ptr Channel[Option[byte]], callbacks: XBVCCallbackTable,
-            rspChan: ptr Channel[XBVCMessage], expectedResponse: ptr Channel[XBVCMessageType]) =
-  var buf: seq[byte] = @[]
-  while true:
-    let rune = ch[].recv()
-    if rune.isNone:
-      return
-    buf.add(rune.get())
-    if buf[^1] != 0.byte:
-      continue
+proc takeUpToZero(s: seq[byte]): (seq[byte], seq[byte]) =
+  ## Takes a sequence of bytes, and splits it into (data, rest) where
+  ## data includes all the bytes up to and including the first zero,
+  ## and rest contains the rest of the input buffer
 
-    buf = cobs.decode(buf)
-    var msgID: Option[uint32]
-    (msgID, buf) = bitvec.decode[uint32](buf)
-    if msgID.isNone():
-      echo "Got corrupt message"
-      buf = @[]
-      continue
+  var
+    head: seq[byte]
+    zeroFound: bool = false
+    idx: int = 0
 
-    let msgWrapper = decodeMessage(buf, msgID.get().XBVCMessageType)
+  head = @[]
 
-    if msgWrapper.isNone():
-      echo &"Unable to decode message from buffer: {buf}"
-      buf = @[]
-      continue
+  while not zeroFound and idx < s.len():
+    head &= s[idx]
+    idx += 1
+    if head[^1] == 0.byte:
+      zeroFound = true
+      break
 
-    let msg = msgWrapper.get()
+  if not zeroFound:
+    return (@[], s)
 
-    var
-      awaitingResponse = false
-      responseType: XBVCMessageType
+  return (head, s[idx.. ^1])
 
-    (awaitingResponse, responseType) = expectedResponse[].tryRecv()
+proc dispatch*(ep: var XBVCDispatcher, data: seq[byte]): (Option[DispatchError], seq[byte]) =
+  # If there are no sequence terminators, we can just return the
+  # entire data packet
+  if not any(data, proc (x: byte): bool = return x == 0):
+    return (none(DispatchError), data)
 
-    if awaitingResponse and responseType == msg.kind:
-      rspChan[].send(msg)
-    else:
-      if awaitingResponse:
-        expectedResponse[].send(responseType)
-      callbacks[msg.kind](msg)
-    buf = @[]
+  var firstPacket, resBuf: seq[byte]
+  (firstPacket, resBuf) = takeUpToZero(data)
 
-proc send(ep: var XBVCEdgePoint, buf: seq[byte]) =
-  let data = cobs.encode(buf)
-  for d in data:
-    ep.txChan.send(some(d))
+  var buf = cobs.decode(firstPacket)
+  var msgID: Option[uint32]
+  (msgID, buf) = bitvec.decode[uint32](buf)
+  if msgID.isNone():
+    var err = DispatchError()
+    err.msg = "Got corrupt COBS packet"
+    return (some(err), resBuf)
 
-proc send*[T](ep: var XBVCEdgePoint, msg: T) =
-  let data = serialize(msg)
-  ep.send(data)
+  let msgType = msgID.get().XBVCMessageType
 
-proc sendWithResponse*[T](ep: var XBVCEdgePoint, msg: T, responseType: XBVCMessageType): Option[XBVCMessage] =
-  var respChan: Channel[XBVCMessage]
-  respChan.open()
+  let msgWrapper = decodeMessage(buf, msgType)
+
+  if msgWrapper.isNone():
+    var err = DispatchError()
+    err.msg = &"Unable to decode message from buffer: {buf}"
+
+    return (some(err), resBuf)
+
+  let msg = msgWrapper.get()
 
   withRLock(ep.responseLock):
-    # This will be set to None by the receive thread to avoid stuffing
-    # extra responses into the channel
-    ep.expectedResponse.send(responseType)
-    let data = serialize(msg)
-    ep.send(data)
-    var
-      dataAvailable = false
-      response: XBVCMessage
-      elapsedTime = 0
+    if ep.responseMap.contains(msgType) and ep.responseMap[msgType].len > 0:
+      let defResp = ep.responseMap[msgType].pop()
+      defResp.send(msg)
+      return (none(DispatchError), resBuf)
 
-    while not dataAvailable and elapsedTime < ResponseTimeout:
-      sleep(ResponsePollMS)
-      elapsedTime += ResponsePollMS
-      (dataAvailable, response) = tryRecv(ep.responseChan)
+  ep.callbacks[msg.kind](msg)
+  return (none(DispatchError), resBuf)
 
-    if not dataAvailable:
-      # Since the default option is "None", we can just bail
-      return
+proc encode*[T](ep: var XBVCDispatcher, msg: T): seq[byte] =
+  result = cobs.encode(msg.serialize)
 
-    result = some(response)
+proc encodeWithResponse*[T](ep: var XBVCDispatcher, msg: T, responseType: XBVCMessageType): (seq[byte], DeferredResponse) =
+  var resp = newDeferredResponse()
 
+  withRLock(ep.responseLock):
+    if not ep.responseMap.contains(responseType):
+      ep.responseMap[responseType] = initQueue[DeferredResponse]()
+    ep.responseMap[responseType].add(resp)
 
-proc start*(ep: var XBVCEdgePoint) =
-  ep.rxChan = Channel[Option[byte]]()
-  ep.txChan = Channel[Option[byte]]()
-  ep.rxChan.open()
-  ep.txChan.open()
-  spawn rxLoop(ep.rxChan.addr, ep.callbacks, ep.responseChan.addr, ep.expectedResponse.addr)
-
-proc stop*(ep: var XBVCEdgePoint) =
-  ep.txChan.send(none(byte))
-  ep.rxChan.send(none(byte))
-
-  # Force a context switch to allow the receiving threads to end
-  sleep(1)
-  ep.rxChan.close()
-  ep.txChan.close()
+  let data = ep.encode(msg)
+  result = (data, resp)
 
 when isMainModule:
   let msg = {{messages[0].pascal_name}}Message()
