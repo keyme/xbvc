@@ -9,11 +9,6 @@ let
 var
   getCommandTriggered = false
 
-proc feedbackLoop(rx, tx: ptr Channel[Option[byte]]) =
-  while true:
-    let data = tx[].recv()
-    rx[].send(data)
-
 proc getCommandCallback(msg: XBVCMessage) =
   echo "Got command callback"
   assert msg.get_command.target == 0xdeadbeef.uint32
@@ -48,10 +43,8 @@ else:
 
 echo rsp
 
-var ep = newEdgePoint()
+var ep = newDispatcher()
 ep.registerCallback(xmGetCommand, getCommandCallback)
-ep.start()
-spawn feedbackLoop(ep.rxChan.addr, ep.txChan.addr)
 
 var cmd = GetCommandMessage()
 cmd.target = 0xdeadbeef.uint32
@@ -62,7 +55,8 @@ assert gtTPS == 1.GetTarget
 assert gtMAP == 2.GetTarget
 assert gtIAT == 3.GetTarget
 
-ep.send(cmd)
+let data = ep.encode(cmd)
+discard ep.dispatch(data)
 
 for _ in 0..1_000_000:
   if getCommandTriggered:
