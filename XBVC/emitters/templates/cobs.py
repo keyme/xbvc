@@ -5,6 +5,7 @@
 # with or without modification.
 # This is based on the C implementation of COBS by Jacques Fortier
 
+
 # Encodes a list or tuple of bytes (data) using COBS
 # Returns the encoded data
 def cobs_encode(data=list()):
@@ -41,11 +42,12 @@ def cobs_encode(data=list()):
 
     return output
 
+
 # Decodes a list or tuple of bytes (data) from COBS
 # Returns a tuple containing the length of the decoded data
 # and a list containing the data, or (0,[]) if the data
 # is invalid
-def cobs_decode(data = list()):
+def cobs_decode(data=list()):
     if not type(data) == list and not type(data) == tuple:
         raise TypeError("data must be a list or tuple")
 

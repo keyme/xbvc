@@ -112,7 +112,7 @@ class Message(object):
             else:
                 self._member_list.append(DataMember(m))
 
-        if self.msg_id == None:
+        if self.msg_id is None:
             raise Exception("Msg {} requires a unique ID".format(self.name))
 
     def __str__(self):
@@ -134,6 +134,7 @@ class Message(object):
         if self.msg_id < other.msg_id:
             return True
         return False
+
 
 class Enum(object):
     def __init__(self, enm, name):
@@ -162,7 +163,7 @@ class Enum(object):
     def __str__(self):
         st = "enum {}:\n".format(self.name)
         for enm, val in self.enum_pairs:
-            st+= " -{}:{}\n".format(enm, val)
+            st += " -{}:{}\n".format(enm, val)
         return st
 
 
@@ -205,7 +206,7 @@ class CommSpec(object):
 
     @property
     def messages(self):
-        ls =  [x for x in self.members if type(x) == Message]
+        ls = [x for x in self.members if type(x) == Message]
         ls.sort()
         return ls
 
@@ -228,7 +229,8 @@ class CommSpec(object):
             if len(set(m.targets).intersection(targets)) == 0:
                 rl.append(m)
 
-            if len(set(m.targets).intersection(targets)) > 0 and len(m.targets) > 1:
+            intersection_len = len(set(m.targets).intersection(targets))
+            if intersection_len > 0 and len(m.targets) > 1:
                 rl.append(m)
 
         return rl

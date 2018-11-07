@@ -3,6 +3,7 @@ from XBVC.emitters.EmitterBase import SourceFile, EmitterBase
 
 EMITTER_NAME = 'python'
 
+
 class Emitter(EmitterBase):
     def __init__(self):
         super().__init__('Python')
