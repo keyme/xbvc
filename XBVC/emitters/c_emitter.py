@@ -26,6 +26,25 @@ type_container_map = {
 
 EMITTER_NAME = 'c'
 
+FLOAT_ENCODE_STR = (
+    "{indent}sf = split_float(src->{name}{index_marker}, MAX_PRECISION);\n"
+    "{indent}index += xbvc_encode_bit_vector(&sf.whole, &dest[index], E_32);\n"
+    "{idx_check}"
+    "{indent}index += xbvc_encode_bit_vector(&sf.frac, &dest[index], E_32);\n"
+    "{idx_check}"
+)
+
+FLOAT_DECODE_STR = (
+    "{indent}sf.whole = 0;\n"
+    "{indent}sf.frac = 0;\n"
+    "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.whole, E_32);\n"
+    "{idx_check}"
+    "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.frac, E_32);\n"
+    "{indent}dest->{name}{index_marker} = combine_float(sf);\n"
+    "{idx_check}"
+)
+
+
 def gen_index_return_check(indent):
     return (
         "{}if (index >= max_len) {{\n{}return -1;\n{}}}\n"
@@ -44,20 +63,12 @@ def gen_bitvec_encode(indent, name, container_type, is_indexed=False):
 
 
 def gen_float_bitvec_encode(indent, name, is_indexed=False):
-    result = (
-        "{indent}sf = split_float(src->{name}{index_marker}, MAX_PRECISION);\n"
-        "{indent}index += xbvc_encode_bit_vector(&sf.whole, &dest[index], E_32);\n"
-        "{idx_check}"
-        "{indent}index += xbvc_encode_bit_vector(&sf.frac, &dest[index], E_32);\n"
-        "{idx_check}"
-        .format(
-            indent=' ' * indent,
-            name=name,
-            index_marker='[i]' if is_indexed else '',
-            idx_check=gen_index_return_check(indent)
-        )
+    result = FLOAT_ENCODE_STR.format(
+        indent=' ' * indent,
+        name=name,
+        index_marker='[i]' if is_indexed else '',
+        idx_check=gen_index_return_check(indent)
     )
-
     return result
 
 
@@ -72,20 +83,11 @@ def gen_bitvec_decode(indent, name, container_type, is_indexed=False):
 
 
 def gen_float_bitvec_decode(indent, name, is_indexed=False):
-    result = (
-        "{indent}sf.whole = 0;\n"
-        "{indent}sf.frac = 0;\n"
-        "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.whole, E_32);\n"
-        "{idx_check}"
-        "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.frac, E_32);\n"
-        "{indent}dest->{name}{index_marker} = combine_float(sf);\n"
-        "{idx_check}"
-        .format(
+    result = FLOAT_DECODE_STR.format(
             indent=' ' * indent,
             name=name,
             index_marker='[i]' if is_indexed else '',
             idx_check=gen_index_return_check(indent)
-        )
     )
 
     return result
@@ -102,18 +104,22 @@ class CStructure:
 
     def _get_values(self):
         for mem in self._msg.members:
-            #Get the type and length of the member
-            if not mem.d_type in type_map:
+            # Get the type and length of the member
+            if mem.d_type not in type_map:
                 raise TypeError("Invalid Type: {}".format(mem.d_type))
 
             mem_type = type_map[mem.d_type]
 
             # Properly lay out the structure, if it is an array, make it so
             if mem.d_len == 1:
-                self.value_pairs.append({'type':mem_type, 'field_name':mem.name})
+                self.value_pairs.append(
+                    {'type': mem_type, 'field_name': mem.name}
+                )
             else:
-                self.value_pairs.append({'type':mem_type,
-                                         'field_name': '{}[{}]'.format(mem.name, mem.d_len)})
+                self.value_pairs.append(
+                    {'type': mem_type,
+                     'field_name': '{}[{}]'.format(mem.name, mem.d_len)}
+                )
 
     @property
     def encoder_body(self):
@@ -133,7 +139,8 @@ class CStructure:
                 if mem.d_type == 'f32':
                     result += gen_float_bitvec_encode(indent, mem.name, True)
                 else:
-                    result += gen_bitvec_encode(indent, mem.name, container_type, True)
+                    result += gen_bitvec_encode(indent, mem.name,
+                                                container_type, True)
                 result += gen_index_return_check(indent)
                 result += '    }\n'
             else:
@@ -141,7 +148,8 @@ class CStructure:
                 if mem.d_type == 'f32':
                     result += gen_float_bitvec_encode(indent, mem.name, False)
                 else:
-                    result += gen_bitvec_encode(indent, mem.name, container_type, False)
+                    result += gen_bitvec_encode(indent, mem.name,
+                                                container_type, False)
                 result += gen_index_return_check(indent)
 
         return result
@@ -162,7 +170,8 @@ class CStructure:
                 if mem.d_type == 'f32':
                     result += gen_float_bitvec_decode(indent, mem.name, True)
                 else:
-                    result += gen_bitvec_decode(indent, mem.name, container_type, True)
+                    result += gen_bitvec_decode(indent, mem.name,
+                                                container_type, True)
                 result += gen_index_return_check(indent)
                 result += '    }\n'
             else:
@@ -170,7 +179,8 @@ class CStructure:
                 if mem.d_type == 'f32':
                     result += gen_float_bitvec_decode(indent, mem.name, False)
                 else:
-                    result += gen_bitvec_decode(indent, mem.name, container_type, False)
+                    result += gen_bitvec_decode(indent, mem.name,
+                                                container_type, False)
                 result += gen_index_return_check(indent)
 
         return result
@@ -211,12 +221,10 @@ class Emitter(EmitterBase):
         if len(diff):
             raise Exception("Unknown targets: {}".format(list(diff)))
 
-
     def _retrieve_cobs_files(self):
         header = SourceFile('cobs.h', self.expand_template('cobs.h'))
         src = SourceFile('cobs.c', self.expand_template('cobs.c'))
         return [header, src]
-
 
     def _generate_handler_prototype(self, st_name):
         rs = "void xbvc_handle_{0}(struct x_{0} *msg)"\
@@ -231,14 +239,16 @@ class Emitter(EmitterBase):
         return SourceFile('xbvc_core.c', content)
 
     def _generate_header_file(self):
-        #message ids
+        # message ids
         msgs = []
         msg_types = [x.name.upper() for x in self.cs.messages]
 
-        protos = [self._generate_handler_prototype(x.name) for x in self.dec_msgs]
-        header_vars = {'enumerations': self.cs.enums,
-                       'prototypes': protos,
-                       'msgs': self.all_msgs,
+        protos = [self._generate_handler_prototype(x.name)
+                  for x in self.dec_msgs]
+        header_vars = {
+            'enumerations': self.cs.enums,
+            'prototypes': protos,
+            'msgs': self.all_msgs,
         }
 
         header_content = self.expand_template('c_header.jinja2', header_vars)

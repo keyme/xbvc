@@ -3,6 +3,7 @@ from jinja2 import Environment, FileSystemLoader
 import os
 import os.path
 
+
 class SourceFile:
     def __init__(self, name, content):
         self.content = content
@@ -14,6 +15,7 @@ class SourceFile:
 
     def __str__(self):
         return self.content
+
 
 # Base emitter class, doesn't do much, just provides stubs for child
 # classes and provides a convenient way to expand a template
@@ -34,4 +36,3 @@ class EmitterBase:
 
         tmpl = env.get_template(template_name)
         return tmpl.render(template_vars)
-
