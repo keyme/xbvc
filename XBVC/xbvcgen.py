@@ -1,10 +1,31 @@
 #!/usr/bin/python
 
 from XBVC.objects import CommSpec
-from XBVC.emitters import emitter_factory
+
 import argparse
 import os
 import shutil
+import sys
+import pkgutil
+
+_dir_path = os.path.dirname(os.path.realpath(__file__))
+EMITTER_DIR = os.path.join(_dir_path, 'emitters')
+
+
+# Adapted from https://stackoverflow.com/questions/1057431
+def _load_emitters():
+    result = {}
+    for importer, package_name, _ in pkgutil.iter_modules([EMITTER_DIR]):
+        if package_name not in sys.modules:
+            module = (importer.find_module(package_name)
+                      .load_module(package_name))
+            if hasattr(module, 'EMITTER_NAME'):
+                print("Loading emitter: {}".format(module.__name__))
+                em_name = getattr(module, 'EMITTER_NAME')
+                result[em_name] = module
+    return result
+
+EMITTER_MODULES = _load_emitters()
 
 
 def _handle_args():
@@ -29,21 +50,20 @@ def main():
 
     comspec = CommSpec(args.input)
 
-    ef = emitter_factory.EmitterFactory()
-
     emitters = []
     if not args.languages:
-        print("No languages specified")
-        print("The following languages are supported:")
-        for lang in ef.supported_languages:
+        print("No languages specified\n"
+              "The following languages are supported:")
+        for lang in EMITTER_MODULES:
             print('-{}'.format(lang))
         exit(0)
 
+    emitters = []
     for lang in args.languages:
-        try:
-            emitters.append(ef.get_emitter(lang))
-        except:
-            print("No emitter found for language: {}".format(lang))
+        if lang.lower() not in EMITTER_MODULES:
+            print("No emitter found for language: {}!".format(lang))
+            return
+        emitters.append(EMITTER_MODULES[lang.lower()].Emitter())
 
     if not args.output:
         exit(0)

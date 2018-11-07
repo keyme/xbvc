@@ -17,7 +17,7 @@ class SourceFile(object):
 
 # Base emitter class, doesn't do much, just provides stubs for child
 # classes and provides a convenient way to expand a template
-class Emitter(object):
+class EmitterBase(object):
     def __init__(self, language):
         self.language = language
 
