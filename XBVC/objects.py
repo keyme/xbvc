@@ -40,7 +40,19 @@ def pascal_string(st):
     return result
 
 
-class DataMember(object):
+class FlexibleNames:
+    name = ""
+
+    @property
+    def pascal_name(self):
+        return pascal_string(self.name)
+
+    @property
+    def camel_name(self):
+        return camel_string(self.name)
+
+
+class DataMember(FlexibleNames):
     def __init__(self, dm):
         m_tup = list(dm.items())[0]
         self.name = m_tup[0]
@@ -63,27 +75,6 @@ class DataMember(object):
         else:
             self.d_len = 1
 
-    @property
-    def pascal_name(self):
-        return pascal_string(self.name)
-
-    @property
-    def camel_name(self):
-        return camel_string(self.name)
-
-    @property
-    def nim_d_type(self):
-        return {
-            'f32': 'float32',
-            'f64': 'float64',
-            'u32': 'uint32',
-            's32': 'int32',
-            'u16': 'uint16',
-            's16': 'int16',
-            'u8': 'uint8',
-            's8': 'int8',
-        }[self.d_type]
-
     def __str__(self):
         rs = 'Data Member: {}\n'.format(self.name)
         rs += '-Type: {}\n'.format(self.d_type)
@@ -92,7 +83,7 @@ class DataMember(object):
         return rs
 
 
-class Message(object):
+class Message(FlexibleNames):
     def __init__(self, msg, name):
         self._member_list = []
         self.name = name
@@ -119,14 +110,6 @@ class Message(object):
         return self.name
 
     @property
-    def pascal_name(self):
-        return pascal_string(self.name)
-
-    @property
-    def camel_name(self):
-        return camel_string(self.name)
-
-    @property
     def members(self):
         return list(self._member_list)
 
@@ -136,7 +119,7 @@ class Message(object):
         return False
 
 
-class Enum(object):
+class Enum(FlexibleNames):
     def __init__(self, enm, name):
         self.enm_list = enm
         self.name = name
@@ -155,10 +138,6 @@ class Enum(object):
     def prefixed_camel_vals(self):
         return [camel_string('{}_{}'.format(self.value_prefix, x.lower()))
                 for x in self.enm_list]
-
-    @property
-    def pascal_name(self):
-        return pascal_string(self.name)
 
     def __str__(self):
         st = "enum {}:\n".format(self.name)
