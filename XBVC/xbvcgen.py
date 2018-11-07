@@ -7,7 +7,7 @@ import os
 import shutil
 
 
-def main():
+def _handle_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", "-i",
                         required=True,
@@ -21,7 +21,11 @@ def main():
                         default=[], help='Target Languages')
     parser.add_argument("--clean", '-c', action='store_true', default=False,
                         help="Removes output directory before writing")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    args = _handle_args()
 
     comspec = CommSpec(args.input)
 
