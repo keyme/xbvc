@@ -1,63 +1,29 @@
 #!/usr/bin/python
-from yaml import load, dump
 
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
-
-from XBVC.objects import CommSpec, Message, Enum
+from XBVC.objects import CommSpec
 from XBVC.emitters import emitter_factory
 import argparse
 import os
 import shutil
 
-def parse(fil):
-    xf = open(fil, 'rb')
-    data = load(xf, Loader=Loader)
-    cs = CommSpec()
-
-    id_map = {}
-    enums = data.get('enumerations', {})
-    messages = data.get('messages', {})
-
-    for enum_name, enum_content in enums.items():
-        m = Enum(enum_content, enum_name)
-        cs.add_member(m)
-
-    for message_name, message_content in messages.items():
-        m = Message(message_content, message_name)
-        if not m.msg_id in id_map.keys():
-            id_map[m.msg_id] = m.name
-        else:
-            raise Exception("Messages {} and {} share the same key!"
-                            .format(m.name, id_map[m.msg_id]))
-        cs.add_member(m)
-
-    return cs
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", "-i", help = "XBVC Definition file")
+    parser.add_argument("--input", "-i",
+                        required=True,
+                        help="XBVC Definition file")
     parser.add_argument("--output", "-o",
-                        help = "Output Directory, or stdout to print to screen")
+                        help="Output Directory, or stdout to print to screen")
     parser.add_argument("--targets", '-t', action='append', dest='targets',
-                        default=[], help = "Autogen targets")
+                        required=True,
+                        default=[], help="Autogen targets")
     parser.add_argument("--lang", '-l', action='append', dest='languages',
                         default=[], help='Target Languages')
     parser.add_argument("--clean", '-c', action='store_true', default=False,
                         help="Removes output directory before writing")
     args = parser.parse_args()
 
-    if not args.input:
-        print("Please provide an input file")
-        exit(0)
-
-    if not args.targets:
-        print("Please provide autogen target(s)")
-        exit(0)
-
-    comspec = parse(args.input)
+    comspec = CommSpec(args.input)
 
     ef = emitter_factory.EmitterFactory()
 

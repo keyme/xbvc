@@ -1,3 +1,4 @@
+import yaml
 
 _type_list = [
     'u32',
@@ -83,7 +84,6 @@ class DataMember(object):
             's8': 'int8',
         }[self.d_type]
 
-
     def __str__(self):
         rs = 'Data Member: {}\n'.format(self.name)
         rs += '-Type: {}\n'.format(self.d_type)
@@ -165,10 +165,33 @@ class Enum(object):
             st+= " -{}:{}\n".format(enm, val)
         return st
 
+
 class CommSpec(object):
-    def __init__(self):
+    def __init__(self, filename):
         self.members = []
         self.targets = []
+        self._parse_file(filename)
+
+    def _parse_file(self, filename):
+        with open(filename, 'rb') as xf:
+            data = yaml.load(xf)
+
+        id_map = {}
+        enums = data.get('enumerations', {})
+        messages = data.get('messages', {})
+
+        for enum_name, enum_content in enums.items():
+            m = Enum(enum_content, enum_name)
+            self.add_member(m)
+
+        for message_name, message_content in messages.items():
+            m = Message(message_content, message_name)
+            if m.msg_id not in id_map.keys():
+                id_map[m.msg_id] = m.name
+            else:
+                raise Exception("Messages {} and {} share the same key!"
+                                .format(m.name, id_map[m.msg_id]))
+            self.add_member(m)
 
     def add_member(self, mem):
         if not type(mem) in [Message, Enum]:
