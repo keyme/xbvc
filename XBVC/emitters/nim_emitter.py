@@ -1,8 +1,9 @@
 from XBVC.objects import CommSpec, Message, Enum
-from XBVC.emitters.EmitterBase import SourceFile, Emitter
+from XBVC.emitters.EmitterBase import SourceFile, EmitterBase
 
+EMITTER_NAME = 'nim'
 
-class NimEmitter(Emitter):
+class Emitter(EmitterBase):
     def __init__(self):
         super().__init__('Nim')
 

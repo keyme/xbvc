@@ -1,6 +1,6 @@
 from XBVC.objects import CommSpec, Message, Enum
 from jinja2 import FileSystemLoader
-from XBVC.emitters.EmitterBase import SourceFile, Emitter
+from XBVC.emitters.EmitterBase import SourceFile, EmitterBase
 
 type_map = {
     'u32': 'uint32_t',
@@ -24,6 +24,7 @@ type_container_map = {
     'f32': 'E_32',
 }
 
+EMITTER_NAME = 'c'
 
 def gen_index_return_check(indent):
     return (
@@ -175,9 +176,9 @@ class CStructure:
         return result
 
 
-class CEmitter(Emitter):
+class Emitter(EmitterBase):
     def __init__(self):
-        super(CEmitter, self).__init__('C')
+        super().__init__('C')
 
     def generate_source(self, commspec, targets):
         self.targets = targets

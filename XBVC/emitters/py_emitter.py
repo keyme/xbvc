@@ -1,10 +1,11 @@
 from XBVC.objects import CommSpec, Message, Enum
-from XBVC.emitters.EmitterBase import SourceFile, Emitter
+from XBVC.emitters.EmitterBase import SourceFile, EmitterBase
 
+EMITTER_NAME = 'python'
 
-class PyEmitter(Emitter):
+class Emitter(EmitterBase):
     def __init__(self):
-        super(PyEmitter, self).__init__('Python')
+        super().__init__('Python')
 
     def generate_source(self, commspec, targets):
         self.cs = commspec
