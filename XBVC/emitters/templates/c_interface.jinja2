@@ -153,7 +153,7 @@ static int xbvc_decode_bit_vector(uint8_t *src, void *dst, uint8_t rt)
     return idx;
 }
 
-{% for msg in msgs %}
+{% for msg in enc_msgs %}
 int xbvc_encode_{{msg.name}}(struct x_{{msg.name}} *src, uint8_t *dest,
                              int max_len)
 {
@@ -164,7 +164,9 @@ int xbvc_encode_{{msg.name}}(struct x_{{msg.name}} *src, uint8_t *dest,
 {{msg.encoder_body}}
     return index;
 }
+{% endfor %}
 
+{% for msg in dec_msgs %}
 int xbvc_decode_{{msg.name}}(uint8_t *src, struct x_{{msg.name}} *dest,
                              int max_len)
 {
@@ -198,7 +200,7 @@ static int xbvc_encode_message(void *msg,
     ret = xbvc_encode_bit_vector(&msg_type, bufptr, E_32);
     bufptr += ret;
     switch (msg_type) {
-	{% for msg in msgs %}
+	{% for msg in enc_msgs %}
     case E_MSG_{{msg.name.upper()}}:
         enc_res = xbvc_encode_{{msg.name}}(
             (struct x_{{msg.name}}*)msgptr,
@@ -265,7 +267,7 @@ static int xbvc_decode_message(uint8_t *ib,
         return -2;
 
     switch (env->msg_type) {
-	{% for msg in msgs %}
+	{% for msg in dec_msgs %}
     case E_MSG_{{msg.name.upper()}}:
         dec_res = xbvc_decode_{{msg.name}}(
             dec_ptr,

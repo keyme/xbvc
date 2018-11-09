@@ -9,13 +9,15 @@ enumerations:
 
 messages:
   get_command:
-    - _targets: {host, device}
+    - _decoders: ['*']
+    - _encoders: ['*']
     - _id: 0
     - Target: u32
     - Fluff: u8[10]
 
   get_response:
-    - _targets: {host, device}
+    - _encoders: ['*']
+    - _decoders: ['*']
     - _id: 1
     - Error: u32
     - Target: u32
@@ -29,16 +31,29 @@ messages:
     - Version4: f32
 
   heartbeat:
-    - _targets: {host, device}
+    - _decoders: ['*']
+    - _encoders: ['*']
     - _id: 2
     - Alive: u32
 
   ping:
-    - _targets: {host, device}
+    - _decoders: ['*']
+    - _encoders: ['*']
     - _id: 0xdeadbeef
 
   test_float:
-    - _targets: {host, device}
+    - _decoders: ['*']
+    - _encoders: ['*']
     - _id: 3
     - f1: f32
     - f2: f32
+
+  test_enc_only:
+    - _decoders: []
+    - _encoders: [host]
+    - _id: 4
+
+  test_dec_only:
+    - _decoders: [host]
+    - _encoders: []
+    - _id: 5

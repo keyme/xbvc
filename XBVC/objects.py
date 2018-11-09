@@ -39,9 +39,16 @@ def pascal_string(st):
     result += cstr[0].upper() + cstr[1:]
     return result
 
+def _map_to_tuple(m):
+    if len(m) > 1:
+        raise ValueError("_map_to_tuple expects a single entry dictionary")
+
+    return list(m.keys())[0], list(m.values())[0]
+
 
 class FlexibleNames:
     name = ""
+    msg_id = 0
 
     @property
     def pascal_name(self):
@@ -50,6 +57,14 @@ class FlexibleNames:
     @property
     def camel_name(self):
         return camel_string(self.name)
+
+
+class HashableNameID:
+    def __hash__(self):
+        return hash(self.name) + hash(self.msg_id)
+
+    def __eq__(self, other):
+        return isinstance(other, type(self))
 
 
 class DataMember(FlexibleNames):
@@ -87,19 +102,21 @@ class Message(FlexibleNames):
     def __init__(self, msg, name):
         self._member_list = []
         self.name = name
-        self.targets = []
+        self.encoders = []
+        self.decoders = []
         self.msg_id = None
 
         self._parse_members(msg)
 
     def _parse_members(self, msg):
         for m in msg:
-            keys = list(m.keys())
-            values = list(m.values())
-            if keys[0] == '_targets':
-                self.targets = values[0].keys()
-            elif keys[0] == '_id':
-                self.msg_id = values[0]
+            k, v = _map_to_tuple(m)
+            if k == '_encoders':
+                self.encoders = v
+            elif k == '_decoders':
+                self.decoders = v
+            elif k == '_id':
+                self.msg_id = v
             else:
                 self._member_list.append(DataMember(m))
 
@@ -195,7 +212,9 @@ class CommSpec(object):
         """
         rl = []
         for m in [x for x in self.messages]:
-            if len(set(m.targets).intersection(targets)) > 0:
+            if len(set(m.encoders).intersection(targets)) > 0:
+                rl.append(m)
+            elif '*' in m.encoders:
                 rl.append(m)
         return rl
 
@@ -204,12 +223,11 @@ class CommSpec(object):
         Returns all messages that do not include a target will need to encode
         """
         rl = []
-        for m in [x for x in self.messages]:
-            if len(set(m.targets).intersection(targets)) == 0:
+        for m in self.messages:
+            intersection_len = len(set(m.decoders).intersection(targets))
+            if intersection_len > 0 and len(targets) > 1:
                 rl.append(m)
-
-            intersection_len = len(set(m.targets).intersection(targets))
-            if intersection_len > 0 and len(m.targets) > 1:
+            elif '*' in m.decoders:
                 rl.append(m)
 
         return rl
