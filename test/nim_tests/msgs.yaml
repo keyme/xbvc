@@ -9,13 +9,13 @@ enumerations:
 
 messages:
   get_command:
-    - _targets: {host, device}
+    - _decoders: ['*']
+    - _encoders: ['*']
     - _id: 0
     - Target: u32
     - Fluff: u8[10]
   
   get_response:
-    - _targets: {host, device}
     - _id: 1
     - Error: u32
     - Target: u32
@@ -27,10 +27,8 @@ messages:
     - FloatList: f32[5]
   
   heartbeat:
-    - _targets: {host, device}
     - _id: 2
     - Alive: u32
   
   ping:
-    - _targets: {host, device}
     - _id: 3

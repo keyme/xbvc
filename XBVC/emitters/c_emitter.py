@@ -1,5 +1,4 @@
-from XBVC.objects import CommSpec, Message, Enum
-from jinja2 import FileSystemLoader
+from XBVC.objects import HashableNameID
 from XBVC.emitters.EmitterBase import SourceFile, EmitterBase
 
 type_map = {
@@ -93,7 +92,7 @@ def gen_float_bitvec_decode(indent, name, is_indexed=False):
     return result
 
 
-class CStructure:
+class CStructure(HashableNameID):
     def __init__(self, message, msg_id):
         self.name = message.name
         self.value_pairs = []
@@ -189,21 +188,19 @@ class CStructure:
 class Emitter(EmitterBase):
     def __init__(self):
         super().__init__('C')
+        self.enc_msgs = []
+        self.dec_msgs = []
 
     def generate_source(self, commspec, targets):
         self.targets = targets
         self.cs = commspec
         source_files = []
 
-        self.dec_msgs = self.cs.get_decode_messages(self.targets)
-        self.enc_msgs = self.cs.get_encode_messages(self.targets)
+        for msg in self.cs.get_decode_messages(self.targets):
+            self.dec_msgs.append(CStructure(msg, msg.msg_id))
 
-        self.all_msgs = []
-
-        for idx, msg in enumerate(self.cs.messages):
-            self.all_msgs.append(CStructure(self.cs.messages[idx], msg.msg_id))
-
-        self._verify_targets()
+        for msg in self.cs.get_encode_messages(self.targets):
+            self.enc_msgs.append(CStructure(msg, msg.msg_id))
 
         source_files.append(self._generate_header_file())
         source_files.append(self._generate_encoder_decoder())
@@ -211,15 +208,9 @@ class Emitter(EmitterBase):
         source_files.extend(self._retrieve_cobs_files())
         return source_files
 
-    def _verify_targets(self):
-        cs_tgts = []
-
-        for m in self.dec_msgs + self.enc_msgs:
-            cs_tgts.extend(m.targets)
-
-        diff = set(self.targets).difference(cs_tgts)
-        if len(diff):
-            raise Exception("Unknown targets: {}".format(list(diff)))
+    @property
+    def all_msgs(self):
+        return set(self.dec_msgs + self.enc_msgs)
 
     def _retrieve_cobs_files(self):
         header = SourceFile('cobs.h', self.expand_template('cobs.h'))
@@ -227,22 +218,20 @@ class Emitter(EmitterBase):
         return [header, src]
 
     def _generate_handler_prototype(self, st_name):
-        rs = "void xbvc_handle_{0}(struct x_{0} *msg)"\
-            .format(st_name)
+        rs = ("void xbvc_handle_{0}(struct x_{0} *msg)"
+              .format(st_name))
 
         return rs
 
     def _generate_encoder_decoder(self):
         content = self.expand_template('c_interface.jinja2',
                                        {'msgs': self.all_msgs,
-                                        'dec_msgs': self.dec_msgs})
+                                        'dec_msgs': self.dec_msgs,
+                                        'enc_msgs': self.enc_msgs})
         return SourceFile('xbvc_core.c', content)
 
     def _generate_header_file(self):
         # message ids
-        msgs = []
-        msg_types = [x.name.upper() for x in self.cs.messages]
-
         protos = [self._generate_handler_prototype(x.name)
                   for x in self.dec_msgs]
         header_vars = {
