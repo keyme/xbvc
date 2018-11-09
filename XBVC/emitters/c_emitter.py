@@ -92,6 +92,39 @@ def gen_float_bitvec_decode(indent, name, is_indexed=False):
     return result
 
 
+def _gen_fn_body(members, float_bv_fn, int_bv_fn):
+    result = ""
+    if any([x.d_type == 'f32' for x in members]):
+        # Note the single braces here are actual valid C code, NOT
+        # a field delimiter for python's `format` function
+        result += '    struct splitfloat sf = {0};\n    (void)sf;\n'
+    for mem in members:
+        container_type = type_container_map[mem.d_type]
+        if int(mem.d_len) > 1:
+            indent = 8
+            result += (
+                '    for (int i = 0; i < {}; i++) {{\n'
+                .format(mem.d_len)
+            )
+            if mem.d_type == 'f32':
+                result += float_bv_fn(indent, mem.name, True)
+            else:
+                result += int_bv_fn(indent, mem.name,
+                                    container_type, True)
+            result += gen_index_return_check(indent)
+            result += '    }\n'
+        else:
+            indent = 4
+            if mem.d_type == 'f32':
+                result += float_bv_fn(indent, mem.name, False)
+            else:
+                result += int_bv_fn(indent, mem.name,
+                                    container_type, False)
+            result += gen_index_return_check(indent)
+
+    return result
+
+
 class CStructure(HashableNameID):
     def __init__(self, message, msg_id):
         self.name = message.name
@@ -122,67 +155,15 @@ class CStructure(HashableNameID):
 
     @property
     def encoder_body(self):
-        result = ""
-        if any([x.d_type == 'f32' for x in self._msg.members]):
-            # Note the single braces here are actual valid C code, NOT
-            # a field delimiter for python's `format` function
-            result += "    struct splitfloat sf = {0};\n    (void)sf;\n"
-        for mem in self._msg.members:
-            container_type = type_container_map[mem.d_type]
-            if int(mem.d_len) > 1:
-                indent = 8
-                result += (
-                    '    for (int i = 0; i < {}; i++) {{\n'
-                    .format(mem.d_len)
-                )
-                if mem.d_type == 'f32':
-                    result += gen_float_bitvec_encode(indent, mem.name, True)
-                else:
-                    result += gen_bitvec_encode(indent, mem.name,
-                                                container_type, True)
-                result += gen_index_return_check(indent)
-                result += '    }\n'
-            else:
-                indent = 4
-                if mem.d_type == 'f32':
-                    result += gen_float_bitvec_encode(indent, mem.name, False)
-                else:
-                    result += gen_bitvec_encode(indent, mem.name,
-                                                container_type, False)
-                result += gen_index_return_check(indent)
-
-        return result
+        return _gen_fn_body(self._msg.members,
+                            gen_float_bitvec_encode,
+                            gen_bitvec_encode)
 
     @property
     def decoder_body(self):
-        result = ""
-        if any([x.d_type == 'f32' for x in self._msg.members]):
-            result += "    struct splitfloat sf = {0};\n    (void)sf;\n"
-        for mem in self._msg.members:
-            container_type = type_container_map[mem.d_type]
-            if int(mem.d_len) > 1:
-                indent = 8
-                result += (
-                    '    for (int i = 0; i < {}; i++) {{\n'
-                    .format(mem.d_len)
-                )
-                if mem.d_type == 'f32':
-                    result += gen_float_bitvec_decode(indent, mem.name, True)
-                else:
-                    result += gen_bitvec_decode(indent, mem.name,
-                                                container_type, True)
-                result += gen_index_return_check(indent)
-                result += '    }\n'
-            else:
-                indent = 4
-                if mem.d_type == 'f32':
-                    result += gen_float_bitvec_decode(indent, mem.name, False)
-                else:
-                    result += gen_bitvec_decode(indent, mem.name,
-                                                container_type, False)
-                result += gen_index_return_check(indent)
-
-        return result
+        return _gen_fn_body(self._msg.members,
+                            gen_float_bitvec_decode,
+                            gen_bitvec_decode)
 
 
 class Emitter(EmitterBase):
