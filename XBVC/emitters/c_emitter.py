@@ -27,6 +27,8 @@ EMITTER_NAME = 'c'
 
 FLOAT_ENCODE_STR = (
     "{indent}sf = split_float(src->{name}{index_marker}, MAX_PRECISION);\n"
+    "{indent}index += xbvc_encode_bit_vector(&sf.sign, &dest[index], E_8);\n"
+    "{idx_check}"
     "{indent}index += xbvc_encode_bit_vector(&sf.whole, &dest[index], E_32);\n"
     "{idx_check}"
     "{indent}index += xbvc_encode_bit_vector(&sf.frac, &dest[index], E_32);\n"
@@ -34,8 +36,11 @@ FLOAT_ENCODE_STR = (
 )
 
 FLOAT_DECODE_STR = (
+    "{indent}sf.sign = 0;\n"
     "{indent}sf.whole = 0;\n"
     "{indent}sf.frac = 0;\n"
+    "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.sign, E_8);\n"
+    "{idx_check}"
     "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.whole, E_32);\n"
     "{idx_check}"
     "{indent}index += xbvc_decode_bit_vector(&src[index], &sf.frac, E_32);\n"
