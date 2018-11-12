@@ -34,7 +34,8 @@ xbvc_data_handler xbvc_platform_write = NULL;
 #define MAX_PRECISION 9
 
 struct splitfloat {
-    int32_t whole;
+    uint8_t sign;
+    uint32_t whole;
     uint32_t frac;
 };
 
@@ -71,11 +72,11 @@ void xbvc_seed_random(uint32_t seed)
 struct splitfloat split_float(float v, int dec_points)
 {
     struct splitfloat result;
-    result.whole = (int32_t)v;
-    result.frac = 0;
-
-    v = v - result.whole;
+    result.sign = v < 0 ? 1 : 0;
     v = fabs(v);
+    result.whole = (uint32_t)v;
+    v = v - result.whole;
+    result.frac = 0;
 
     if (dec_points > MAX_PRECISION) {
         dec_points = MAX_PRECISION;
@@ -108,7 +109,12 @@ float combine_float(struct splitfloat s)
     if (result_whole < 0) {
         result_frac *= -1.0;
     }
-    return result_whole + result_frac;
+    float result = result_whole + result_frac;
+    if (s.sign) {
+        result *= -1;
+    }
+
+    return result;
 }
 
 static int xbvc_encode_bit_vector(void *src, uint8_t *dst, uint8_t rt)

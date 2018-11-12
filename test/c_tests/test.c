@@ -86,9 +86,9 @@ void test_encode_round_trip(void)
     msg.Foo = 0xa5;
     msg.Result = -8675309;
     msg.Bar = 0xff;
-    msg.Version = 2.05;
-    msg.Version2 = -1.0;
-    msg.Version3 = 0.0;
+    msg.Version = -1.1;
+    msg.Version2 = -0.5;
+    msg.Version3 = 0.05;
     msg.Version4 = 123.321;
 
     int enc_len = xbvc_encode_get_response(&msg, encode_buf,

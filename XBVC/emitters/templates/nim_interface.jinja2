@@ -17,7 +17,8 @@ const
 
 type
   SplitFloat = object
-    whole: int32
+    sign: uint8
+    whole: uint32
     frac: uint32
 
 type
@@ -60,9 +61,12 @@ proc splitFloat(v: float, precision: int=MaxPrecision): SplitFloat =
   var v = v
   var precision = precision
 
-  result.whole = v.int32
-  v = v - result.whole.float
+  result.sign = if v < 0: 1
+               else: 0
+
   v = abs(v)
+  result.whole = v.uint32
+  v = v - result.whole.float
 
   precision = max(MaxPrecision, precision)
 
@@ -74,7 +78,6 @@ proc splitFloat(v: float, precision: int=MaxPrecision): SplitFloat =
     v = v - (v.uint32).float
     dec precision
     mul *= 10
-
 
 proc combineFloat(s: SplitFloat): float =
   var resultWhole = s.whole.float
@@ -88,10 +91,9 @@ proc combineFloat(s: SplitFloat): float =
     s.frac = (s.frac.int / 10.int).uint32
     mul *= 10
 
-  if resultWhole < 0:
-    resultFrac *= -1
-
-  return resultWhole + resultFrac
+  result = resultWhole + resultFrac
+  if s.sign == 1:
+    result *= -1
 
 
 proc `==`*[T: ref XBVCMessageBase](a, b: T): bool =
@@ -111,6 +113,7 @@ proc serialize*(m: {{msg.pascal_name}}Message, rndId, respTo: uint32): seq[byte]
   {% if m.d_len == 1 %}
     {% if m.d_type == "f32" %}
   let sf{{loop.index}} = splitFloat(m.{{m.camel_name}})
+  result &= bitvec.encode(sf{{loop.index}}.sign)
   result &= bitvec.encode(sf{{loop.index}}.whole)
   result &= bitvec.encode(sf{{loop.index}}.frac)
     {% else %}
@@ -120,6 +123,7 @@ proc serialize*(m: {{msg.pascal_name}}Message, rndId, respTo: uint32): seq[byte]
   for val in m.{{m.camel_name}}:
     {% if m.d_type == "f32" %}
     let sf{{loop.index}} = splitFloat(val)
+    result &= bitvec.encode(sf{{loop.index}}.sign)
     result &= bitvec.encode(sf{{loop.index}}.whole)
     result &= bitvec.encode(sf{{loop.index}}.frac)
     {% else %}
@@ -138,16 +142,21 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[(uint32, {{msg.pascal
     {% endif %}
   {% if m.d_len == 1 %}
     {% if m.d_type == "f32" %}
-  var decRes{{loop.index}}a: Option[int32]
-  (decRes{{loop.index}}a, rem) = bitvec.decode[int32](rem)
-  if decRes{{loop.index}}a.isNone():
+  var decRes{{loop.index}}sign: Option[uint8]
+  var decRes{{loop.index}}whole: Option[uint32]
+  var decRes{{loop.index}}frac: Option[uint32]
+  (decRes{{loop.index}}sign, rem) = bitvec.decode[uint8](rem)
+  if decRes{{loop.index}}sign.isNone():
     return
-  sf{{loop.index}}.whole = decRes{{loop.index}}a.get()
-  var decRes{{loop.index}}b: Option[uint32]
-  (decRes{{loop.index}}b, rem) = bitvec.decode[uint32](rem)
-  if decRes{{loop.index}}b.isNone():
+  sf{{loop.index}}.sign = decRes{{loop.index}}sign.get()
+  (decRes{{loop.index}}whole, rem) = bitvec.decode[uint32](rem)
+  if decRes{{loop.index}}whole.isNone():
     return
-  sf{{loop.index}}.frac = decRes{{loop.index}}b.get()
+  sf{{loop.index}}.whole = decRes{{loop.index}}whole.get()
+  (decRes{{loop.index}}frac, rem) = bitvec.decode[uint32](rem)
+  if decRes{{loop.index}}frac.isNone():
+    return
+  sf{{loop.index}}.frac = decRes{{loop.index}}frac.get()
   resObj.{{m.camel_name}} = combineFloat(sf{{loop.index}})
     {% else %}
   var decRes{{loop.index}}: Option[{{m.nim_d_type}}]
@@ -159,16 +168,21 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[(uint32, {{msg.pascal
   {% else %}
   for idx in 0..resObj.{{m.camel_name}}.high:
     {% if m.d_type == "f32" %}
-    var decRes{{loop.index}}a: Option[int32]
-    var decRes{{loop.index}}b: Option[uint32]
-    (decRes{{loop.index}}a, rem) = bitvec.decode[int32](rem)
-    if decRes{{loop.index}}a.isNone():
+    var decRes{{loop.index}}sign: Option[uint8]
+    var decRes{{loop.index}}whole: Option[uint32]
+    var decRes{{loop.index}}frac: Option[uint32]      
+    (decRes{{loop.index}}sign, rem) = bitvec.decode[uint8](rem)
+    if decRes{{loop.index}}sign.isNone():
       return
-    (decRes{{loop.index}}b, rem) = bitvec.decode[uint32](rem)
-    if decRes{{loop.index}}b.isNone():
+    (decRes{{loop.index}}whole, rem) = bitvec.decode[uint32](rem)
+    if decRes{{loop.index}}whole.isNone():
       return
-    sf{{loop.index}}.whole = decRes{{loop.index}}a.get()
-    sf{{loop.index}}.frac = decRes{{loop.index}}b.get()
+    (decRes{{loop.index}}frac, rem) = bitvec.decode[uint32](rem)
+    if decRes{{loop.index}}frac.isNone():
+      return
+    sf{{loop.index}}.sign = decRes{{loop.index}}sign.get()
+    sf{{loop.index}}.whole = decRes{{loop.index}}whole.get()
+    sf{{loop.index}}.frac = decRes{{loop.index}}frac.get()
     resObj.{{m.camel_name}}[idx] = sf{{loop.index}}.combineFloat()
     {% else %}
     var decRes{{loop.index}}: Option[{{m.nim_d_type}}]
