@@ -92,6 +92,11 @@ def gen_float_bitvec_decode(indent, name, is_indexed=False):
     return result
 
 
+NON_GENERATED_FIELDS = [
+    'response_to',
+    'random_id'
+]
+
 def _gen_fn_body(members, float_bv_fn, int_bv_fn):
     result = ""
     if any([x.d_type == 'f32' for x in members]):
@@ -99,6 +104,8 @@ def _gen_fn_body(members, float_bv_fn, int_bv_fn):
         # a field delimiter for python's `format` function
         result += '    struct splitfloat sf = {0};\n    (void)sf;\n'
     for mem in members:
+        if mem.name in NON_GENERATED_FIELDS:
+            continue
         container_type = type_container_map[mem.d_type]
         if int(mem.d_len) > 1:
             indent = 8

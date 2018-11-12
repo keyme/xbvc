@@ -8,6 +8,7 @@ import os
 import strformat
 import queues
 import sequtils
+import random
 
 const
   ResponsePollMS = 125
@@ -101,7 +102,10 @@ template `$`*[T: ref XBVCMessageBase](a: T): string =
   $a[]
 
 {% for msg in messages %}
-proc serialize*(m: {{msg.pascal_name}}Message): seq[byte] =
+proc serialize*(m: {{msg.pascal_name}}Message, rndId, respTo: uint32): seq[byte] =
+  var m = m
+  m.randomId = rndId
+  m.responseTo = respTo
   result = bitvec.encode(xm{{msg.pascal_name}}.uint)
   {% for m in msg.members %}
   {% if m.d_len == 1 %}
@@ -124,7 +128,7 @@ proc serialize*(m: {{msg.pascal_name}}Message): seq[byte] =
   {% endif %}
   {% endfor %}
 
-proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Message] =
+proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[(uint32, {{msg.pascal_name}}Message)] =
   var resObj = {{msg.pascal_name}}Message()
   var rem = @s
 
@@ -175,7 +179,7 @@ proc deserialize{{msg.pascal_name}}*(s: seq[byte]): Option[{{msg.pascal_name}}Me
     {% endif %}
   {% endif %}
   {% endfor %}
-  result = some(resObj)
+  result = some((resObj.responseTo, resObj))
 
 {% endfor %}
 
@@ -188,7 +192,7 @@ type
   XBVCDispatcher* = object
     callbacks: XBVCCallbackTable
     responseLock: RLock
-    responseMap: Table[XBVCMessageType, Queue[DeferredResponse]]
+    responseMap: Table[uint32, DeferredResponse]
     responseChan: Channel[XBVCMessage]
     expectedResponse: Channel[XBVCMessageType]
 
@@ -226,22 +230,24 @@ proc newDispatcher*(): XBVCDispatcher =
   result.responseChan.open()
   result.expectedResponse.open(1)
   initRLock(result.responseLock)
-  result.responseMap = initTable[XBVCMessageType, Queue[DeferredResponse]]()
+  result.responseMap = initTable[uint32, DeferredResponse]()
+  randomize()
 
 proc registerCallback*(ep: var XBVCDispatcher, msgType: XBVCMessageType, cb: XBVCCallback) =
   # TODO: Allow multiple callbacks?  Throw an error? TBD
   ep.callbacks[msgType] = cb
 
-proc decodeMessage(input: seq[byte], msgID: XBVCMessageType): Option[XBVCMessage] =
+proc decodeMessage(input: seq[byte], msgID: XBVCMessageType): Option[(uint32, XBVCMessage)] =
   var msg: XBVCMessage
   case msgID
 {% for msg in messages %}
   of xm{{msg.pascal_name}}:
-    let innerMsg: Option[{{msg.pascal_name}}Message] = input.deserialize{{msg.pascal_name}}()
-    if innerMsg.isNone():
+    let deserializeResult: Option[(uint32, {{msg.pascal_name}}Message)] = input.deserialize{{msg.pascal_name}}()
+    if deserializeResult.isNone():
       return
-    msg = XBVCMessage(kind:xm{{msg.pascal_name}}, {{msg.name.lower()}}:innerMsg.get())
-    result = some(msg)
+    let (responseTo, innerMsg) = deserializeResult.get()
+    msg = XBVCMessage(kind:xm{{msg.pascal_name}}, {{msg.name.lower()}}:innerMsg)
+    result = some((responseTo, msg))
 {% endfor %}
 
 proc takeUpToZero(s: seq[byte]): (seq[byte], seq[byte]) =
@@ -295,30 +301,30 @@ proc dispatch*(ep: var XBVCDispatcher, data: seq[byte]): (Option[DispatchError],
 
     return (some(err), resBuf)
 
-  let msg = msgWrapper.get()
+  let (responseTo, msg) = msgWrapper.get()
 
   withRLock(ep.responseLock):
-    if ep.responseMap.contains(msgType) and ep.responseMap[msgType].len > 0:
-      let defResp = ep.responseMap[msgType].pop()
+    if ep.responseMap.contains(responseTo):
+      let defResp = ep.responseMap[responseTo]
       defResp.send(msg)
       return (none(DispatchError), resBuf)
 
   ep.callbacks[msg.kind](msg)
   return (none(DispatchError), resBuf)
 
-proc encode*[T](ep: var XBVCDispatcher, msg: T): seq[byte] =
-  result = cobs.encode(msg.serialize)
+proc encode*[T](ep: var XBVCDispatcher, msg: T, responseTo:uint32=0): (uint32, seq[byte]) =
+  let rndId = rand(0xffffffff.int).uint32
+  result = (rndId, cobs.encode(msg.serialize(rndId, responseTo)))
 
-proc encodeWithResponse*[T](ep: var XBVCDispatcher, msg: T, responseType: XBVCMessageType): (seq[byte], DeferredResponse) =
+proc encodeWithResponse*[T](ep: var XBVCDispatcher, msg: T): (seq[byte], uint32, DeferredResponse) =
   var resp = newDeferredResponse()
 
+  let (rndId, data) = ep.encode(msg)
   withRLock(ep.responseLock):
-    if not ep.responseMap.contains(responseType):
-      ep.responseMap[responseType] = initQueue[DeferredResponse]()
-    ep.responseMap[responseType].add(resp)
+    # TODO: Throw an error if the ID already exists
+    ep.responseMap[rndId] = resp
 
-  let data = ep.encode(msg)
-  result = (data, resp)
+  result = (data, rndId, resp)
 
 when isMainModule:
   let msg = {{messages[0].pascal_name}}Message()

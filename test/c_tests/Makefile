@@ -4,7 +4,7 @@ CC = gcc
 C_FILES = test.c foo/C/cobs.c foo/C/xbvc_core.c gqueue.c
 
 
-all: test
+all: run_test
 .PHONY: clean
 
 CFLAGS = -Wall -Werror -Wextra -ggdb
@@ -14,7 +14,9 @@ foo: msgs.yaml
 
 test: foo $(C_FILES)
 	gcc $(C_FILES) $(CFLAGS) -Ifoo/C -o $@
-	./$@
+
+run_test: test
+	./test
 
 clean:
 	rm -rf \
