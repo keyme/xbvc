@@ -30,12 +30,17 @@ let rsp = GetResponseMessage(error: 123.uint32,
                                          4.4.float32,
                                          5.5.float32])
 
-let encoded = rsp.serialize()
+let encoded = rsp.serialize(0xdeadbeef.uint32, 0xbeefcafe.uint32)
 let decoded = deserializeGetResponse(encoded[1..^1])
 if decoded.isSome():
-  let decInternal = decoded.get()
+  var (_, decInternal) = decoded.get()
+  # clear random id and response id so equality checks on
+  # everything else
+  decInternal.randomId = 0
+  decInternal.responseTo = 0
   echo rsp
   echo decInternal
+
   assert decInternal == rsp
   echo "decoded GetResponse successfully"
 else:
@@ -55,7 +60,7 @@ assert gtTPS == 1.GetTarget
 assert gtMAP == 2.GetTarget
 assert gtIAT == 3.GetTarget
 
-let data = ep.encode(cmd)
+let (_, data) = ep.encode(cmd)
 discard ep.dispatch(data)
 
 for _ in 0..1_000_000:

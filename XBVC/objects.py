@@ -11,6 +11,9 @@ _type_list = [
     'f64'
 ]
 
+RANDOM_ID = {'random_id': 'u32'}
+RESPONSE_TO = {'response_to': 'u32'}
+
 
 def camel_string(st):
     """Given a string st containing underscores, returns a string in which
@@ -100,7 +103,11 @@ class DataMember(FlexibleNames):
 
 class Message(FlexibleNames):
     def __init__(self, msg, name):
-        self._member_list = []
+        self._member_list = [
+            DataMember(RANDOM_ID),
+            DataMember(RESPONSE_TO)
+        ]
+
         self.name = name
         self.encoders = []
         self.decoders = []

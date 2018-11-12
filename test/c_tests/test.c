@@ -13,19 +13,20 @@
 DECLARE_QUEUE(buf, char, BUFFER_SIZE);
 
 extern int xbvc_encode_get_command(struct x_get_command *src, uint8_t *dest,
-                                   int max_len);
+                                   int max_len, uint32_t response_id);
+extern int xbvc_encode_get_response(struct x_get_response *src, uint8_t *dest,
+                                    int max_len, uint32_t response_id);
+extern int xbvc_encode_test_float(struct x_test_float *src, uint8_t *dest,
+                                  int max_len, uint32_t response_id);
 extern int xbvc_decode_get_command(uint8_t *src, struct x_get_command *dest,
                                    int max_len);
-extern int xbvc_encode_get_response(struct x_get_response *src, uint8_t *dest,
-                                    int max_len);
 extern int xbvc_decode_get_response(uint8_t *src, struct x_get_response *dest,
                                     int max_len);
-extern int xbvc_encode_test_float(struct x_test_float *src, uint8_t *dest,
-                                  int max_len);
 extern int xbvc_decode_test_float(uint8_t *src, struct x_test_float *dest,
                                   int max_len);
 bool got_heartbeat = false;
 bool got_get = false;
+uint32_t response_id = 0;
 uint8_t fluffcmp[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
 void xbvc_handle_get_command(struct x_get_command *msg)
@@ -43,11 +44,14 @@ void xbvc_handle_heartbeat(struct x_heartbeat *msg)
     printf("Got heartbeat!\n");
     assert(msg->Alive == 0xdeadbeef);
     got_heartbeat = true;
+    response_id = msg->response_to;
 }
 
 void print_get_response(struct x_get_response *msg)
 {
     printf("x_get_response:\n");
+    printf("random_id: 0x%x\n", msg->random_id);
+    printf("response_to: 0x%x\n", msg->response_to);
     printf("Error: 0x%x\n", msg->Error);
     printf("Target: 0x%x\n", msg->Target);
     printf("Index: %d\n", msg->Index);
@@ -86,13 +90,15 @@ void test_encode_round_trip(void)
     msg.Version2 = -1.0;
     msg.Version3 = 0.0;
     msg.Version4 = 123.321;
-    print_get_response(&msg);
 
     int enc_len = xbvc_encode_get_response(&msg, encode_buf,
-                                           sizeof(encode_buf));
+                                           sizeof(encode_buf), 0);
     int dec_len = xbvc_decode_get_response(encode_buf, &decoded_msg,
                                            sizeof(encode_buf));
 
+    /* Since we don't know the random ID created in the encode
+     * function, we need to copy it over here */
+    msg.random_id = decoded_msg.random_id;
     printf("%d | %d\n", enc_len, dec_len);
 
     printf("[");
@@ -105,6 +111,7 @@ void test_encode_round_trip(void)
     printf("]");
     printf("\n");
 
+    print_get_response(&msg);
     print_get_response(&decoded_msg);
 
     assert(memcmp(&msg, &decoded_msg, sizeof(struct x_get_response)) == 0);
@@ -137,32 +144,43 @@ int loopback_write(uint8_t *src, int len)
     return len;
 }
 
-void test_roundtrip_encoding(void)
+void test_repsonse_to(void)
 {
-    xbvc_init(NULL,
-              loopback_read,
-              loopback_write,
-              loopback_init);
 
-    struct x_heartbeat heartbeat;
-    heartbeat.Alive = 0xdeadbeef;
-    xbvc_send(&heartbeat, E_MSG_HEARTBEAT);
+    struct x_heartbeat heartbeat = {
+        .Alive = 0xdeadbeef,
+    };
+    xbvc_send_response(&heartbeat, E_MSG_HEARTBEAT, 0xbeefcafe);
     for(int i = 0; i < 10000; i++) {
         xbvc_run();
-        if (got_heartbeat) {
+        if (response_id == 0xbeefcafe) {
+            printf("response_to works!\n");
             return;
         }
     }
     assert(false);
 }
 
+
+void test_roundtrip_encoding(void)
+{
+    struct x_heartbeat heartbeat = {
+        .Alive = 0xdeadbeef,
+    };
+    xbvc_send(&heartbeat, E_MSG_HEARTBEAT);
+    for(int i = 0; i < 10000; i++) {
+        xbvc_run();
+        if (got_heartbeat) {
+            printf("Round trip encoding1 works!\n");
+            return;
+        }
+    }
+    assert(false);
+
+}
+
 void test_roundtrip_encoding2(void)
 {
-    xbvc_init(NULL,
-              loopback_read,
-              loopback_write,
-              loopback_init);
-
     struct x_get_command getcmd;
     getcmd.Target = 0xf00fdada;
     memcpy(fluffcmp, getcmd.Fluff, 10);
@@ -194,10 +212,11 @@ void test_double_float()
     print_test_float(&msg);
 
     int enc_len = xbvc_encode_test_float(&msg, encode_buf,
-                                         sizeof(encode_buf));
+                                         sizeof(encode_buf), 0);
     int dec_len = xbvc_decode_test_float(encode_buf, &decoded_msg,
                                          sizeof(encode_buf));
 
+    msg.random_id = decoded_msg.random_id;
     printf("%d | %d\n", enc_len, dec_len);
 
     printf("[");
@@ -213,13 +232,19 @@ void test_double_float()
     print_test_float(&decoded_msg);
 
     assert(memcmp(&msg, &decoded_msg, sizeof(struct x_test_float)) == 0);
-    
+
 }
 
 
 int main()
 {
-    test_encode_round_trip();
+    xbvc_seed_random(0xdeadbeef);
+    xbvc_init(NULL,
+              loopback_read,
+              loopback_write,
+              loopback_init);
+   test_encode_round_trip();
+    test_repsonse_to();
     test_roundtrip_encoding();
     test_roundtrip_encoding2();
     test_id_integrity();

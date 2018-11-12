@@ -50,6 +50,24 @@ struct splitfloat {
    to store data on the wire to count the exponent.
 */
 
+static volatile uint32_t random_state = 0xbeefcafe;
+
+uint32_t xorshift32()
+{
+    /* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
+    uint32_t x = random_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    random_state = x;
+    return x;
+}
+
+void xbvc_seed_random(uint32_t seed)
+{
+    random_state = seed;
+}
+
 struct splitfloat split_float(float v, int dec_points)
 {
     struct splitfloat result;
@@ -155,12 +173,20 @@ static int xbvc_decode_bit_vector(uint8_t *src, void *dst, uint8_t rt)
 
 {% for msg in enc_msgs %}
 int xbvc_encode_{{msg.name}}(struct x_{{msg.name}} *src, uint8_t *dest,
-                             int max_len)
+                             int max_len, uint32_t rnd_id, uint32_t response_id)
 {
     XBVCTOUCH(src);
     XBVCTOUCH(dest);
     XBVCTOUCH(max_len);
     int index = 0;
+    index += xbvc_encode_bit_vector(&rnd_id, &dest[index], E_32);
+    if (index >= max_len) {
+        return -1;
+    }
+    index += xbvc_encode_bit_vector(&response_id, &dest[index], E_32);
+    if (index >= max_len) {
+        return -1;
+    }
 {{msg.encoder_body}}
     return index;
 }
@@ -174,6 +200,15 @@ int xbvc_decode_{{msg.name}}(uint8_t *src, struct x_{{msg.name}} *dest,
     XBVCTOUCH(dest);
     XBVCTOUCH(max_len);
     int index = 0;
+    index += xbvc_decode_bit_vector(&src[index], &dest->random_id, E_32);
+    if (index >= max_len) {
+        return -1;
+    }
+    index += xbvc_decode_bit_vector(&src[index], &dest->response_to, E_32);
+    if (index >= max_len) {
+        return -1;
+    }
+
 {{msg.decoder_body}}
     return index;
 }
@@ -183,7 +218,9 @@ int xbvc_decode_{{msg.name}}(uint8_t *src, struct x_{{msg.name}} *dest,
 static int xbvc_encode_message(void *msg,
 			       uint32_t msg_type,
 			       uint8_t *dst,
-			       size_t dst_len)
+                               size_t dst_len,
+                               uint32_t rnd_id,
+                               uint32_t response_id)
 {
     static uint8_t encbuf[sizeof(struct xbvc_message_envelope) * 2] = {0};
     uint8_t *bufptr = encbuf;
@@ -191,10 +228,6 @@ static int xbvc_encode_message(void *msg,
     int ret;
     int enc_res = 0;
     size_t size_calc = 0;
-
-    /* Make sure we support this message type */
-    if (msg_type > E_MSG_MAX)
-        return -1;
 
     /* Encode the message type and move the buffer pointer */
     ret = xbvc_encode_bit_vector(&msg_type, bufptr, E_32);
@@ -204,9 +237,10 @@ static int xbvc_encode_message(void *msg,
     case E_MSG_{{msg.name.upper()}}:
         enc_res = xbvc_encode_{{msg.name}}(
             (struct x_{{msg.name}}*)msgptr,
-            bufptr, sizeof(encbuf) - ret);
+            bufptr, sizeof(encbuf) - ret, rnd_id, response_id);
         break;
 	{% endfor %}
+    default: return -1;
     }
 
     if (enc_res < 0) {
@@ -261,11 +295,6 @@ static int xbvc_decode_message(uint8_t *ib,
     dec_ptr += ret;
     env_ptr += sizeof(env->msg_type);
 
-    /* Attempt to grab the encode/decode key array, this will be
-     * known as the run-length byte */
-    if (env->msg_type >= E_MSG_MAX)
-        return -2;
-
     switch (env->msg_type) {
 	{% for msg in dec_msgs %}
     case E_MSG_{{msg.name.upper()}}:
@@ -275,10 +304,11 @@ static int xbvc_decode_message(uint8_t *ib,
             sizeof(dec_buf) - ret);
         break;
 	{% endfor %}
+    default: return -2;
     }
 
     if (dec_res < 0) {
-        return -2;
+        return -3;
     }
 
     /* Glorious victory */
@@ -315,12 +345,19 @@ static void xbvc_handle_packet(uint8_t *ib, int len)
 
 }
 
-int xbvc_send(void *msg, uint32_t msg_type)
+int xbvc_send_response(void *msg, uint32_t msg_type, uint32_t response_id,
+                       uint32_t *rnd_id_ret)
 {
     static uint8_t outputbuf[sizeof(struct xbvc_message_envelope) * 2] = {0};
     int ret;
 
-    ret = xbvc_encode_message(msg, msg_type, outputbuf, sizeof(outputbuf));
+    uint32_t rnd_id = xorshift32();
+    ret = xbvc_encode_message(msg, msg_type, outputbuf,
+                              sizeof(outputbuf), rnd_id, response_id);
+
+    if (rnd_id_ret != NULL) {
+        *rnd_id_ret = rnd_id;
+    }
 
     if (ret < 0)
         return ret;
@@ -330,6 +367,13 @@ int xbvc_send(void *msg, uint32_t msg_type)
 
     memset(outputbuf, 0x00, sizeof(outputbuf));
     return ret;
+}
+
+int xbvc_send(void *msg, uint32_t msg_type, uint32_t *rnd_id_ret)
+{
+    /* We send a null response as this is just a message, not
+       responding to some stimulus */
+    return xbvc_send_response(msg, msg_type, XBVC_NULL_RESPONSE, rnd_id_ret);
 }
 
 /* xbvc initialization function */

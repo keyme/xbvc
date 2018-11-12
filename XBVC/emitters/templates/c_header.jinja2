@@ -33,6 +33,8 @@ struct x_{{msg.name}} {
 {% endfor %}
 
 #define XBVCTOUCH(x) (void)x;
+#define XBVC_NULL_RESPONSE 0
+
 /* Handler Prototypes */
 
 /* These are to be implemented by the end user! */
@@ -52,6 +54,9 @@ void xbvc_init(void *params,
 	       xbvc_platform_init_handler platform_init);
 
 void xbvc_run(void);
-int xbvc_send(void *msg, uint32_t msg_type);
-	
+int xbvc_send(void *msg, uint32_t msg_type, uint32_t *rnd_id_ret);
+int xbvc_send_response(void *msg, uint32_t msg_type,
+                       uint32_t response_id, uint32_t *rnd_id_ret);
+void xbvc_seed_random(uint32_t seed);
+
 #endif /* XBVC_CORE_H */
