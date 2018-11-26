@@ -150,7 +150,8 @@ class Enum(FlexibleNames):
 
     @property
     def enum_pairs(self):
-        return zip(self.enm_list, range(len(self.enm_list)))
+        result = zip(self.enm_list, range(len(self.enm_list)))
+        return sorted(result, key=lambda x: x[1])
 
     @property
     def value_prefix(self):

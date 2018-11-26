@@ -146,6 +146,9 @@ class CStructure(HashableNameID):
 
         self._get_values()
 
+    def __lt__(self, other):
+        return self.name < other.name
+
     def _get_values(self):
         for mem in self._msg.members:
             # Get the type and length of the member
