@@ -9,7 +9,7 @@
 #include "xbvc_core.h"
 
 union xbvc_msg_union {
-{% for msg in msgs %}
+{% for msg in msgs | sort %}
     struct x_{{msg.name}} {{msg.name}};
 {% endfor %}
 };

@@ -6,24 +6,24 @@
 
 /* Message types */
 enum xbvc_messages {
-	{% for msg in msgs %}
+	{% for msg in msgs | sort(attribute='msg_id') %}
 	E_MSG_{{msg.name.upper()}} = {{msg.msg_id}},
 	{% endfor %}
 	E_MSG_MAX,
 };
 
 /* Enumerations */
-{% for enum in enumerations%}
+{% for enum in enumerations %}
 enum {{enum.name}} {
-	{% for pair in enum.enum_pairs%}
-	{{pair[0]}} = {{pair[1]}},
+	{% for key, value in enum.enum_pairs %}
+	{{key}} = {{value}},
 	{% endfor %}
 };
 
 {% endfor %}
 
 /* Message Structures */
-{% for msg in msgs %}
+{% for msg in msgs | sort %}
 struct x_{{msg.name}} {
 	{% for pair in msg.value_pairs %}
 	{{pair['type']}} {{pair['field_name']}};
