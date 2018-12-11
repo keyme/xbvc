@@ -164,6 +164,12 @@ class Enum(FlexibleNames):
         return [camel_string('{}_{}'.format(self.value_prefix, x.lower()))
                 for x in self.enm_list]
 
+    @property
+    def caps_prefixed_camel_vals(self):
+        return ['{}{}'.format(self.value_prefix.upper(), pascal_string(x.lower()))
+                for x in self.enm_list]
+
+
     def __str__(self):
         st = "enum {}:\n".format(self.name)
         for enm, val in self.enum_pairs:

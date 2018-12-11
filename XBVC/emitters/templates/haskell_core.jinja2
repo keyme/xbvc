@@ -1,0 +1,125 @@
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# LANGUAGE NamedFieldPuns #-}
+
+module XBVC where
+
+import Bitvec
+import qualified Cobs
+import XBVC.Data
+
+import Control.Concurrent
+import qualified Data.ByteString as BS
+import Data.IORef
+import Data.Word
+import System.Random
+import qualified Data.Map as Map
+
+stopByte :: Word8
+stopByte = 0
+
+newDispatcher :: IO Dispatcher
+newDispatcher = do
+  {% for msg in messages %}
+    {{msg.camel_name}} <- newIORef $ standIn "{{msg.camel_name}}"
+  {% endfor %}
+
+    return $ Dispatcher {
+  {% for line in msg_name_list %}
+        {{line}}
+  {% endfor %}
+    }
+    where
+        standIn str _ _ = do
+            putStrLn $ "Message type " ++ str ++ " has no handler"
+
+newXbvcDispatcher :: IO XBVCDispatcher
+newXbvcDispatcher = do
+    cbs <- newDispatcher
+    rMap <- newMVar mempty
+    return $ XBVCDispatcher
+                { callbacks = cbs
+                , responseMap = rMap
+                }
+
+
+xbvcSend :: XBVCType a
+         => (BS.ByteString -> IO ())
+         -> a
+         -> Maybe Int
+         -> IO ()
+xbvcSend serialChannel msg rID = do
+    packet <- xbvcPacket msg rID
+    serialChannel $ serialize packet
+
+xbvcSendWithResponse :: (XBVCType a, XBVCType b)
+                     => (BS.ByteString -> IO ())
+                     -> XBVCDispatcher
+                     -> a
+                     -> Maybe Int
+                     -> IO (Maybe b)
+xbvcSendWithResponse sendChannel dispatcher msg rID = do
+    msg <- xbvcPacket msg rID
+    let idKey = msgID msg
+    let bs = serialize msg
+    empMsg <- newEmptyMVar
+    modifyMVar_ respMap (return . Map.insert idKey empMsg)
+    sendChannel $ Cobs.encode bs
+    respMsg <- takeMVar empMsg
+    modifyMVar_ respMap (return . Map.delete idKey)
+    let mPayLoad = payLoad <$> respMsg
+    return $ mPayLoad >>= deserialize
+    where
+        respMap = responseMap dispatcher
+
+
+until :: Word8 -> (Int -> IO (Maybe [Word8])) -> IO (Maybe BS.ByteString)
+until stop serialChannel = do
+    nextBytes <- until' []
+    case nextBytes of
+        Nothing -> return Nothing
+        Just bytes -> do
+            return $ Just $ BS.pack bytes
+    where
+        until' :: [Word8] -> IO (Maybe [Word8])
+        until' prev = do
+            next <- serialChannel 1
+            case next of
+                Just (0:[]) -> return $ Just $ reverse $ 0 : prev
+                Just (nextByte:[]) -> until' $ nextByte : prev
+                Just _ -> until' prev -- shouldn't happen
+                _ -> return Nothing
+
+dispatch :: XBVCDispatcher -> XBVCPacket -> IO ()
+dispatch dispatcher packet =
+    if respID packet == 0
+        then do
+            _ <- forkIO $ call (callbacks dispatcher) packet
+            return ()
+        else do
+            responses <- takeMVar $ responseMap dispatcher
+            case Map.lookup (respID packet) responses of
+                Nothing -> do
+                    putStrLn "Got response for a message we don't remember sending"
+                    putStrLn $ "Unexpected response was " ++ (show packet)
+                Just mvar -> putMVar mvar (Just packet)
+            putMVar (responseMap dispatcher) responses
+
+
+-- Stops when a None is sent through serial "channel"
+rxLoop :: (Int -> IO (Maybe [Word8]))
+       -> XBVCDispatcher
+       -> IO ()
+rxLoop serialChannel dispatcher = rxLoop'
+    where
+        rxLoop' = do
+            nextMsg <- XBVC.until stopByte serialChannel
+            case nextMsg of
+                Nothing -> return ()
+                Just bytes -> do
+                    case Cobs.decode bytes of
+                        Left err -> putStrLn err
+                        Right bitvec ->
+                            case deserialize bitvec of
+                                Nothing -> putStrLn "Decode error"
+                                Just packet -> dispatch dispatcher packet
+                    rxLoop'
