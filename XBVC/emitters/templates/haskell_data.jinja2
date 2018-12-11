@@ -1,0 +1,137 @@
+-- Shadowing gives the clearest expressing of our generated deserializers
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+
+module XBVC.Data where
+
+import Control.Concurrent
+import qualified Data.ByteString as BS
+import qualified Data.Map as Map
+import Data.IORef
+import Data.Word
+import Data.Int
+import Data.Maybe
+
+import qualified Bitvec
+import System.Random
+
+{# Enums #}
+{% for enum in enumerations %}
+data {{enum.pascal_name}} =
+  {% for val in enum.caps_prefixed_camel_vals%}
+    {% if loop.index == 1 %}
+    {{val}}
+    {% else %}
+  | {{val}}
+    {% endif %}
+  {% endfor %}
+  deriving (Show, Eq, Enum)
+
+{% endfor %}
+{# Packet Instances #}
+{% for msg in messages %}
+data {{msg.pascal_name}} = {{msg.pascal_name}}
+  {
+  {% for m in msg.members if not m.camel_name in ["randomId", "responseTo"] %}
+  {%if loop.index > 1%}  ,{%else %}   {% endif %} {{m.camel_name}} :: {{m.hask_type_sig}}
+  {% endfor %}
+  }
+  deriving (Show, Eq)
+
+instance Serializable {{msg.pascal_name}} where
+  serialize ({{msg.pascal_name}} {{msg.space_sep_member_list}}) =
+    BS.concat [
+    {% for m in msg.members if not m.camel_name in ["randomId", "responseTo"] %}
+    {%if loop.index > 1%}    ,{%else %}     {% endif %} {{m.encode_str}}
+    {% endfor %}
+    ]
+
+  deserialize bs = do
+  {% for m in msg.members if not m.camel_name in ["randomId", "responseTo"] %}
+    ({{m.camel_name}}, bs) <- {{m.decode_str}}
+  {% endfor %}
+    justOnEnd bs $ {{msg.pascal_name}} {{msg.space_sep_member_list}}
+
+instance XBVCType {{msg.pascal_name}} where
+    xbvcPacket = makePacketInstance {{msg.msg_id}}
+
+{% endfor %}
+{# Autogenreated dispatch map #}
+data Dispatcher = Dispatcher
+  {
+  {% for msg in messages %}
+    {%if loop.index > 1%}  ,{%else %}   {% endif %} {{msg.camel_name}} :: (IORef (Int -> {{msg.pascal_name}} -> IO ()))
+  {% endfor %}
+  }
+
+{# Below this is the core code #}
+justOnEnd :: BS.ByteString -> a -> Maybe a
+justOnEnd bs a = if BS.null bs
+                    then Just a
+                    else Nothing
+
+class Show a => Serializable a where
+    serialize :: a -> BS.ByteString
+    deserialize :: BS.ByteString -> Maybe a
+
+
+class Serializable a => XBVCType a where
+    xbvcPacket :: (a -> Maybe Int -> IO XBVCPacket)
+
+
+makePacketInstance :: Serializable a => Int -> a -> Maybe Int -> IO XBVCPacket
+makePacketInstance n a rID = do
+    randomID <- randomRIO (0, 0xffffffff)
+    let responseID = fromMaybe 0 rID
+    return $ Packet n randomID responseID (serialize a)
+
+
+call :: Dispatcher -> XBVCPacket -> IO ()
+call dispatcher (Packet mType mID _ pL) =
+  case mType of
+  {% for msg in messages %}
+    {{msg.msg_id}} -> call' {{msg.camel_name}}
+  {% endfor %}
+    _    -> putStrLn "Unknown message type tried to be dispatched"
+  where
+    call' :: Serializable a
+          => (Dispatcher -> (IORef (Int -> a -> IO ())))
+          -> IO ()
+    call' msgType = do
+      cb <- readIORef $ msgType dispatcher
+      let mMsg = deserialize pL
+      case mMsg of
+        Just msg -> cb mID msg
+        Nothing -> putStrLn "Failed to decode message"
+
+addCallback :: (Dispatcher -> (IORef (Int -> a -> IO ()))) -> (Int -> a -> IO ()) -> Dispatcher -> IO ()
+addCallback msgType func dispatcher = writeIORef (msgType dispatcher) func
+
+
+data XBVCPacket = Packet
+                { msgType :: Int
+                , msgID :: Int
+                , respID :: Int
+                , payLoad :: BS.ByteString
+                } deriving Show
+
+instance Serializable XBVCPacket where
+    serialize (Packet t m r d) = BS.concat [ Bitvec.encode t
+                                           , Bitvec.encode m
+                                           , Bitvec.encode r
+                                           , d
+                                           ]
+
+    deserialize bs = do
+        (mType, bs) <- Bitvec.decode bs
+        (mID, bs) <- Bitvec.decode bs
+        (rID, bs) <- Bitvec.decode bs
+        return $ Packet mType mID rID bs
+
+type ResponseMap = Map.Map Int (MVar (Maybe XBVCPacket))
+
+
+data XBVCDispatcher = XBVCDispatcher
+                      { callbacks :: Dispatcher
+                      , responseMap :: MVar ResponseMap
+                      }

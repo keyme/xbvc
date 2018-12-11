@@ -1,3 +1,5 @@
 *.pyc
 /test/c_tests/foo/*
 /test/c_tests/test
+/test/haskell_tests/dist/*
+/test/haskell_tests/cabal.sandbox.config
