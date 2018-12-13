@@ -35,4 +35,7 @@ class EmitterBase:
         env.lstrip_blocks = True
 
         tmpl = env.get_template(template_name)
-        return tmpl.render(template_vars)
+        content = tmpl.render(template_vars)
+        if content[-1] != '\n':
+            content += '\n'
+        return content
