@@ -4,6 +4,7 @@
 
 module XBVC.Data where
 
+import Control.Monad.State
 import Control.Concurrent
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
@@ -40,17 +41,26 @@ data {{msg.pascal_name}} = {{msg.pascal_name}}
 
 instance Serializable {{msg.pascal_name}} where
   serialize ({{msg.pascal_name}} {{msg.space_sep_member_list}}) =
-    BS.concat [
-    {% for m in msg.members if not m.camel_name in ["randomId", "responseTo"] %}
-    {%if loop.index > 1%}    ,{%else %}     {% endif %} {{m.encode_str}}
-    {% endfor %}
-    ]
+    {%if msg.members|length > 2%}
+    Bitvec.encodeSNew (do
+        {% for m in msg.members if not m.camel_name in ["randomId", "responseTo"] %}
+            {{m.encode_str}}
+        {% endfor %}
+                      )
+    {%else%}
+    BS.empty
+    {%endif%}
 
-  deserialize bs = do
-  {% for m in msg.members if not m.camel_name in ["randomId", "responseTo"] %}
-    ({{m.camel_name}}, bs) <- {{m.decode_str}}
-  {% endfor %}
-    justOnEnd bs $ {{msg.pascal_name}} {{msg.space_sep_member_list}}
+  deserialize bs =
+    {%if msg.members|length > 2%}
+    Bitvec.decodeSTUntilEmpty (do
+    {% for m in msg.members if not m.camel_name in ["randomId", "responseTo"] %}
+      {{m.camel_name}} <- {{m.decode_str}}
+    {% endfor %}
+      return $ {{msg.pascal_name}} {{msg.space_sep_member_list}}) bs
+    {%else%}
+    Bitvec.justOnEnd bs {{msg.pascal_name}}
+    {%endif%}
 
 instance XBVCType {{msg.pascal_name}} where
     xbvcPacket = makePacketInstance {{msg.msg_id}}
@@ -65,10 +75,6 @@ data Dispatcher = Dispatcher
   }
 
 {# Below this is the core code #}
-justOnEnd :: BS.ByteString -> a -> Maybe a
-justOnEnd bs a = if BS.null bs
-                    then Just a
-                    else Nothing
 
 class Show a => Serializable a where
     serialize :: a -> BS.ByteString
@@ -122,11 +128,13 @@ instance Serializable XBVCPacket where
                                            , d
                                            ]
 
-    deserialize bs = do
-        (mType, bs) <- Bitvec.decode bs
-        (mID, bs) <- Bitvec.decode bs
-        (rID, bs) <- Bitvec.decode bs
-        return $ Packet mType mID rID bs
+    deserialize bs =
+        let result = runStateT (do
+                mType <- Bitvec.decodeST
+                mID   <- Bitvec.decodeST
+                rID   <- Bitvec.decodeST
+                return $ Packet mType mID rID) bs in
+            fst <$> result <*> (snd <$> result)
 
 type ResponseMap = Map.Map Int (MVar (Maybe XBVCPacket))
 

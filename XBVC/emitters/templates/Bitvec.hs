@@ -23,11 +23,88 @@ indicating the end of a field.
 
 -}
 
-module Bitvec where
+module Bitvec
+    ( decodeST
+    , decodeFloatST
+    , decodeListOfST
+    , decodeListST
+    , decodeFloatListST
+    , decodeSTUntilEmpty
+    , decodeList
+    , decodeFloatList
+    , endDecode
+    , justOnEnd
+    , encodeS
+    , encodeFloatS
+    , encodeListS
+    , encodeFloatListS
+    , encodeSNew
+    , encode
+    , Bitvec.encodeFloat
+    , decode) where
 
+import Control.Monad.State
 import qualified Data.ByteString as BS
 import Data.Bits
 import Data.Word
+
+decodeST :: (Integral a) => StateT BS.ByteString Maybe a
+decodeST = StateT decode
+
+decodeFloatST :: StateT BS.ByteString Maybe Float
+decodeFloatST = StateT Bitvec.decodeFloat
+
+decodeListOfST :: (BS.ByteString -> Maybe (a, BS.ByteString))
+               -> Int
+               -> StateT BS.ByteString Maybe [a]
+decodeListOfST f n = StateT decodeListOfST'
+    where
+        decodeListOfST' bs = decodeListOf bs f n
+
+decodeListST :: (Integral a) => Int -> StateT BS.ByteString Maybe [a]
+decodeListST = decodeListOfST decode
+
+decodeFloatListST :: Int -> StateT BS.ByteString Maybe [Float]
+decodeFloatListST = decodeListOfST Bitvec.decodeFloat
+
+decodeSTUntilEmpty :: StateT BS.ByteString Maybe a -> BS.ByteString -> Maybe a
+decodeSTUntilEmpty stateT = evalStateT stateT'
+    where stateT' = do
+                        res <- stateT
+                        endDecode
+                        return res
+
+endDecode :: StateT BS.ByteString Maybe ()
+endDecode = StateT endS'
+    where
+        endS' bs
+            | BS.null bs = Just ((), BS.empty)
+            | otherwise = Nothing
+
+justOnEnd :: BS.ByteString -> a -> Maybe a
+justOnEnd bs a
+    | BS.null bs = Just a
+    | otherwise = Nothing
+
+encodeS :: (Integral a) => a -> State BS.ByteString ()
+encodeS a = state $ \bs -> ((), BS.append bs (encode a))
+
+encodeFloatS :: Float -> State BS.ByteString ()
+encodeFloatS a = state $ \bs -> ((), BS.append bs (Bitvec.encodeFloat a))
+
+encodeListOfS :: (a -> State BS.ByteString ()) -> Int -> [a] -> State BS.ByteString ()
+encodeListOfS f n l = mapM_ f list
+    where
+        list = take n l
+
+encodeListS :: (Integral a) => Int -> [a] -> State BS.ByteString ()
+encodeListS = encodeListOfS encodeS
+
+encodeFloatListS :: Int -> [Float] -> State BS.ByteString ()
+encodeFloatListS = encodeListOfS encodeFloatS
+
+encodeSNew :: State BS.ByteString () -> BS.ByteString
+encodeSNew state = execState state BS.empty
 
 
 fracDigits' :: Float -> [Int]
@@ -100,16 +177,16 @@ encodeFloat f = BS.concat [signEnc, wholeEnc, fracEnc]
 -- | Decode an EBV (stored in a bytestring) into a floating point
 -- number and any remaining bytes
 decodeFloat :: BS.ByteString -> Maybe (Float, BS.ByteString)
-decodeFloat bs = do
-  (signRaw, bs) <- decode bs :: Maybe (Word8, BS.ByteString)
-  (wholeRaw, bs) <- decode bs :: Maybe (Word32, BS.ByteString)
-  (fracRaw, bs) <- decode bs :: Maybe (Word32, BS.ByteString)
+decodeFloat bs = runStateT (do
+  signRaw  <- decodeST :: StateT BS.ByteString Maybe Word8
+  wholeRaw <- decodeST :: StateT BS.ByteString Maybe Word32
+  fracRaw  <- decodeST :: StateT BS.ByteString Maybe Word32
   let sm = signMul signRaw
       wholeFlt = fromIntegral wholeRaw
       fracDig = (floatify . intDigits) $ toInteger fracRaw
       fracFlt = reconstitute $ zip fracDig magnitudeList'
       result = sm * (wholeFlt + fracFlt) :: Float
-  return $ (result, bs)
+  return result) bs
 
 -- | Encodes an integral as an extensible bit vector represented by a bytestring
 encode :: (Integral a) => a -> BS.ByteString
@@ -171,12 +248,10 @@ decode bs = case unconsEBV bs of
 -- | Helper method for decoding lists of objects
 decodeListOf :: BS.ByteString -> (BS.ByteString -> Maybe (a, BS.ByteString)) -> Int -> Maybe ([a], BS.ByteString)
 decodeListOf bs _ 0 = Just ([], bs)
-decodeListOf bs f count = result
-  where
-    result = do
-      (val, remaining) <- f bs
-      (rest, bsRem)  <- decodeListOf remaining f (count - 1)
-      return ([val] ++ rest, bsRem)
+decodeListOf bs f count = runStateT (do
+    val <- StateT f
+    rest <- decodeListOfST f (count - 1)
+    return $ val : rest) bs
 
 -- | Given a bytestring and a number, attempts to decode a list of
 -- numbers. Returns an option of the list and any remaining data.
