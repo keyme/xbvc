@@ -15,45 +15,45 @@ _TYPE_MAP = {
 }
 
 _ENC_MAP = {
-    'f32': 'Bitvec.encodeFloat',
+    'f32': 'Bitvec.encodeFloatS',
     'f64': 'encodeFloat',
-    'u32': 'Bitvec.encode',
-    's32': 'Bitvec.encode',
-    'u16': 'Bitvec.encode',
-    's16': 'Bitvec.encode',
-    'u8': 'Bitvec.encode',
-    's8': 'Bitvec.encode',
+    'u32': 'Bitvec.encodeS',
+    's32': 'Bitvec.encodeS',
+    'u16': 'Bitvec.encodeS',
+    's16': 'Bitvec.encodeS',
+    'u8': 'Bitvec.encodeS',
+    's8': 'Bitvec.encodeS',
 }
 
 _DEC_MAP = {
-    'f32': 'Bitvec.decodeFloat',
+    'f32': 'Bitvec.decodeFloatST',
     'f64': 'decodeFloat',
-    'u32': 'Bitvec.decode',
-    's32': 'Bitvec.decode',
-    'u16': 'Bitvec.decode',
-    's16': 'Bitvec.decode',
-    'u8': 'Bitvec.decode',
-    's8': 'Bitvec.decode',
+    'u32': 'Bitvec.decodeST',
+    's32': 'Bitvec.decodeST',
+    'u16': 'Bitvec.decodeST',
+    's16': 'Bitvec.decodeST',
+    'u8': 'Bitvec.decodeST',
+    's8': 'Bitvec.decodeST',
 }
 
 _LIST_DEC_MAP = {
-    'f32': 'Bitvec.decodeFloatList',
+    'f32': 'Bitvec.decodeFloatListST',
     'f64': 'decodeFloatList',
-    'u32': 'Bitvec.decodeList',
-    's32': 'Bitvec.decodeList',
-    'u16': 'Bitvec.decodeList',
-    's16': 'Bitvec.decodeList',
-    'u8': 'Bitvec.decodeList',
-    's8': 'Bitvec.decodeList',
+    'u32': 'Bitvec.decodeListST',
+    's32': 'Bitvec.decodeListST',
+    'u16': 'Bitvec.decodeListST',
+    's16': 'Bitvec.decodeListST',
+    'u8': 'Bitvec.decodeListST',
+    's8': 'Bitvec.decodeListST',
 }
 
 
 def _gen_decode_string(member):
     if member.d_len == 1:
-        return '{} bs'.format(_DEC_MAP[member.d_type])
+        return '{}'.format(_DEC_MAP[member.d_type])
 
     return (
-        '{} bs {}'
+        '{} {}'
         .format(
             _LIST_DEC_MAP[member.d_type],
             member.d_len
@@ -65,7 +65,7 @@ def _gen_encode_string(member):
     if member.d_len == 1:
         return '{} {}'.format(_ENC_MAP[member.d_type], member.camel_name)
 
-    return ('BS.concat $ {} <$> (take {} {})'
+    return ('mapM_ {} $ take {} {}'
             .format(_ENC_MAP[member.d_type],
                     member.d_len,
                     member.camel_name))
