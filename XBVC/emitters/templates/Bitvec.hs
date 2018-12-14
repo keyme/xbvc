@@ -177,7 +177,7 @@ encodeFloat f = BS.concat [signEnc, wholeEnc, fracEnc]
 -- | Decode an EBV (stored in a bytestring) into a floating point
 -- number and any remaining bytes
 decodeFloat :: BS.ByteString -> Maybe (Float, BS.ByteString)
-decodeFloat bs = runStateT (do
+decodeFloat = runStateT $ do
   signRaw  <- decodeST :: StateT BS.ByteString Maybe Word8
   wholeRaw <- decodeST :: StateT BS.ByteString Maybe Word32
   fracRaw  <- decodeST :: StateT BS.ByteString Maybe Word32
@@ -186,7 +186,7 @@ decodeFloat bs = runStateT (do
       fracDig = (floatify . intDigits) $ toInteger fracRaw
       fracFlt = reconstitute $ zip fracDig magnitudeList'
       result = sm * (wholeFlt + fracFlt) :: Float
-  return result) bs
+  return result
 
 -- | Encodes an integral as an extensible bit vector represented by a bytestring
 encode :: (Integral a) => a -> BS.ByteString
