@@ -29,8 +29,8 @@ newDispatcher = do
   {% endfor %}
     }
     where
-        standIn str _ _ = do
-            putStrLn $ "Message type " ++ str ++ " has no handler"
+        standIn str _ msg = do
+            putStrLn $ "Message type " ++ str ++ " has no handler: \n\t" ++ (show msg)
 
 newXbvcDispatcher :: IO XBVCDispatcher
 newXbvcDispatcher = do
