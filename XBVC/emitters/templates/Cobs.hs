@@ -75,8 +75,13 @@ decode bs =
                 -- the decoded bytes are the non-zero bytes with no ending 0
                 -- else they are the non-zero bytes followed by the removed 0
                 decodedChunk = if h == 255 || BS.null back || BS.head back == 0
-                                    then if BS.null back then Left (errorMsg "No ending 0" bs)
-                                                         else Right front
+                                    then if BS.null back
+                                            then
+                                                let msg = if BS.any (0 ==) front
+                                                            then "Found 0 too soon"
+                                                            else "No ending 0 in byte string" in
+                                                Left (errorMsg msg bs)
+                                            else Right front
                                     else Right (BS.snoc front 0) in
                     -- return the decoded bytestring followed by the remaining
                     -- byte string after it has been decoded
