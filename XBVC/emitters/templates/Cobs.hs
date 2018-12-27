@@ -128,6 +128,7 @@ encodeTests = [ ( [0]
               ]
 
 
+decodeTests :: [([W.Word8], [W.Word8])]
 decodeTests = T.swap <$> encodeTests
 
 -- Takes a list of source byte strings
@@ -175,6 +176,7 @@ checkEncodeDecode bs =
         Left _ -> False
         Right result -> BS.pack bs == result
 
+main :: IO ()
 main = do
     putStrLn "Testing COBS encoding and decoding"
     putStrLn "\n\nTesting encoding"
