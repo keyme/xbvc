@@ -98,7 +98,7 @@ call dispatcher (Packet mType mID _ pL) =
   {% for msg in messages %}
     {{msg.msg_id}} -> call' {{msg.camel_name}}
   {% endfor %}
-    _    -> putStrLn "Unknown message type tried to be dispatched"
+    n    -> putStrLn $ "Unknown message type tried to be dispatched: " ++ (show n)
   where
     call' :: Serializable a
           => (Dispatcher -> (IORef (Int -> a -> IO ())))
