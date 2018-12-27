@@ -62,7 +62,7 @@ decode bs =
         -- after the zero then the encoding is not correct
         (Just (0, tl)) -> if BS.null tl
             then Right BS.empty
-            else Left (errorMsg "Found non-empty ByteString after 0" tl)
+            else Left (errorMsg "Found non-empty ByteString after 0" bs)
         -- If the next value isn't zero it is the number of
         -- bytes until the next zero
         (Just (h, tl)) ->
