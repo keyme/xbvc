@@ -104,7 +104,7 @@ encodeFloatListS :: Int -> [Float] -> State BS.ByteString ()
 encodeFloatListS = encodeListOfS encodeFloatS
 
 encodeSNew :: State BS.ByteString () -> BS.ByteString
-encodeSNew state = execState state BS.empty
+encodeSNew s = execState s BS.empty
 
 
 fracDigits' :: Float -> [Int]
@@ -124,11 +124,10 @@ fracDigits f = fracDigits' $ abs f
 
 intDigits' :: Integral a => a -> [Int]
 intDigits' 0 = []
-intDigits' n = [firstDigit] ++ intDigits' remainder
+intDigits' n = firstDigit : intDigits' q
   where
     (q, r) = quotRem n 10
     firstDigit = fromIntegral r
-    remainder = fromIntegral q
 
 -- | Given an integer, returns each digit in a list by place such that
 -- if you multiplied each value by an increasing power of 10, you'd

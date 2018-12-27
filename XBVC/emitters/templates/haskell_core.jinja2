@@ -3,7 +3,7 @@
 
 module XBVC where
 
-import Bitvec
+import Bitvec ()
 import qualified Cobs
 import XBVC.Data
 
@@ -11,7 +11,6 @@ import Control.Concurrent
 import qualified Data.ByteString as BS
 import Data.IORef
 import Data.Word
-import System.Random
 import qualified Data.Map as Map
 
 stopByte :: Word8
