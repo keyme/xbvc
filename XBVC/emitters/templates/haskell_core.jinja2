@@ -13,6 +13,9 @@ import Data.IORef
 import Data.Word
 import qualified Data.Map as Map
 
+
+type WriteChannel = BS.ByteString -> IO Bool
+
 stopByte :: Word8
 stopByte = 0
 
@@ -42,16 +45,16 @@ newXbvcDispatcher = do
 
 
 xbvcSend :: XBVCType a
-         => (BS.ByteString -> IO ())
+         => WriteChannel
          -> a
          -> Maybe Int
-         -> IO ()
+         -> IO Bool
 xbvcSend serialChannel msg rID = do
     packet <- xbvcPacket msg rID
     serialChannel $ serialize packet
 
 xbvcSendWithResponse :: (XBVCType a, XBVCType b)
-                     => (BS.ByteString -> IO ())
+                     => WriteChannel
                      -> XBVCDispatcher
                      -> a
                      -> Maybe Int
@@ -62,11 +65,14 @@ xbvcSendWithResponse sendChannel dispatcher msg rID = do
     let bs = serialize msg
     empMsg <- newEmptyMVar
     modifyMVar_ respMap (return . Map.insert idKey empMsg)
-    sendChannel $ Cobs.encode bs
-    respMsg <- takeMVar empMsg
-    modifyMVar_ respMap (return . Map.delete idKey)
-    let mPayLoad = payLoad <$> respMsg
-    return $ mPayLoad >>= deserialize
+    sent <- sendChannel $ Cobs.encode bs
+    case sent of
+        False -> return Nothing
+        True -> do
+            respMsg <- takeMVar empMsg
+            modifyMVar_ respMap (return . Map.delete idKey)
+            let mPayLoad = payLoad <$> respMsg
+            return $ mPayLoad >>= deserialize
     where
         respMap = responseMap dispatcher
 
