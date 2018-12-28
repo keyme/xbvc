@@ -66,13 +66,15 @@ xbvcSendWithResponse sendChannel dispatcher msg rID = do
     empMsg <- newEmptyMVar
     modifyMVar_ respMap (return . Map.insert idKey empMsg)
     sent <- sendChannel $ Cobs.encode bs
-    case sent of
+    resp <- case sent of
         False -> return Nothing
         True -> do
             respMsg <- takeMVar empMsg
-            modifyMVar_ respMap (return . Map.delete idKey)
+
             let mPayLoad = payLoad <$> respMsg
             return $ mPayLoad >>= deserialize
+    modifyMVar_ respMap (return . Map.delete idKey)
+    return resp
     where
         respMap = responseMap dispatcher
 
