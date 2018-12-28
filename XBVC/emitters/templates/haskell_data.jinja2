@@ -109,9 +109,32 @@ call dispatcher (Packet mType mID _ pL) =
         Just msg -> cb mID msg
         Nothing -> putStrLn "Failed to decode message"
 
+-- | Adds a simple callback to the XBVC dispatcher that will receive the intended message 
 addCallback :: (Dispatcher -> (IORef (Int -> a -> IO ()))) -> (Int -> a -> IO ()) -> Dispatcher -> IO ()
 addCallback msgType func dispatcher = writeIORef (msgType dispatcher) func
 
+-- | Adds a callback with accompanying state (wrapped in an MVar).  This callback should return
+-- an updated instance of the state object that will be put back into the mvar
+-- (This uses modifyMVar_ under the hood and is exception safe)
+addCallbackWithState :: (Dispatcher -> (IORef (Int -> a -> IO ()))) -> (Int -> a -> b -> IO (b)) -> MVar b -> Dispatcher -> IO ()
+addCallbackWithState msgType func state dispatcher = writeIORef (msgType dispatcher) func'
+  where
+    func' = \i m -> do
+      modifyMVar_ state $ \stateLocal -> func i m stateLocal
+
+-- | Adds a callback with accompanying context (i.e. some global handle that is not updated by the callback)
+addCallbackWithContext :: (Dispatcher -> (IORef (Int -> a -> IO ()))) -> (Int -> a -> b -> IO ()) -> b -> Dispatcher -> IO ()
+addCallbackWithContext msgType func ctx dispatcher = writeIORef (msgType dispatcher) func'
+  where
+    func' = \i m -> func i m ctx
+
+-- | Adds a callback with both state AND context.  The callback should return updated state
+addCallbackWithStateAndContext :: (Dispatcher -> (IORef (Int -> a -> IO ()))) -> (Int -> a -> b -> c -> IO (b)) -> MVar b -> c -> Dispatcher -> IO ()
+addCallbackWithStateAndContext msgType func state ctx dispatcher = writeIORef (msgType dispatcher) func'
+  where
+    func' = \i m -> do
+      modifyMVar_ state $ \stateLocal -> func i m stateLocal ctx
+ 
 
 data XBVCPacket = Packet
                 { msgType :: Int
