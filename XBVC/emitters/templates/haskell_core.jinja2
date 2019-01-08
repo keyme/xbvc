@@ -51,7 +51,7 @@ xbvcSend :: XBVCType a
          -> IO Bool
 xbvcSend serialChannel msg rID = do
     packet <- xbvcPacket msg rID
-    serialChannel $ serialize packet
+    serialChannel $ Cobs.encode $ serialize packet
 
 xbvcSendWithResponse :: (XBVCType a, XBVCType b)
                      => WriteChannel
