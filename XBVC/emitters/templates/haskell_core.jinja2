@@ -12,6 +12,8 @@ import qualified Data.ByteString as BS
 import Data.IORef
 import Data.Word
 import qualified Data.Map as Map
+import System.Timeout
+import Data.Maybe
 
 
 type WriteChannel = BS.ByteString -> IO Bool
@@ -58,8 +60,9 @@ xbvcSendWithResponse :: (XBVCType a, XBVCType b)
                      -> XBVCDispatcher
                      -> a
                      -> Maybe Int
+                     -> Int
                      -> IO (Maybe b)
-xbvcSendWithResponse sendChannel dispatcher msg rID = do
+xbvcSendWithResponse sendChannel dispatcher msg rID timeLimit = do
     msg <- xbvcPacket msg rID
     let idKey = msgID msg
     let bs = serialize msg
@@ -69,10 +72,9 @@ xbvcSendWithResponse sendChannel dispatcher msg rID = do
     resp <- case sent of
         False -> return Nothing
         True -> do
-            respMsg <- takeMVar empMsg
-
-            let mPayLoad = payLoad <$> respMsg
-            return $ mPayLoad >>= deserialize
+          respMsg <- timeout (timeLimit * 1000) $ takeMVar empMsg
+          let mPayLoad = payLoad <$> (fromMaybe Nothing respMsg)
+          return $ mPayLoad >>= deserialize
     modifyMVar_ respMap (return . Map.delete idKey)
     return resp
     where
