@@ -125,7 +125,7 @@ class Message(FlexibleNames):
             elif k == '_decoders':
                 self.decoders = v
             elif k == '_id':
-               self.msg_id = v
+                self.msg_id = v
             else:
                 self._member_list.append(DataMember(m))
 
