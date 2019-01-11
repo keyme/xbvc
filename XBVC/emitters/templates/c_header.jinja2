@@ -42,6 +42,7 @@ struct x_{{msg.name}} {
 {% for p in prototypes %}
 {{p}};
 {% endfor %}
+void xbvc_handle_decode_error_found();
 
 /* Platform handler prototypes */
 typedef int (*xbvc_data_handler)(uint8_t *, int);
