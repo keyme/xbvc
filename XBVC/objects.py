@@ -14,6 +14,8 @@ _type_list = [
 RANDOM_ID = {'random_id': 'u32'}
 RESPONSE_TO = {'response_to': 'u32'}
 
+MAX_USER_ID = 0xff000000
+
 
 def camel_string(st):
     """Given a string st containing underscores, returns a string in which
@@ -123,7 +125,7 @@ class Message(FlexibleNames):
             elif k == '_decoders':
                 self.decoders = v
             elif k == '_id':
-                self.msg_id = v
+               self.msg_id = v
             else:
                 self._member_list.append(DataMember(m))
 
@@ -197,12 +199,23 @@ class CommSpec(object):
 
         for message_name, message_content in messages.items():
             m = Message(message_content, message_name)
-            if m.msg_id not in id_map.keys():
+            if m.msg_id > MAX_USER_ID:
+                raise Exception("Msg {}'s unique ID must be less than {}"
+                                .format(self.name, MAX_USER_ID))
+            elif m.msg_id not in id_map.keys():
                 id_map[m.msg_id] = m.name
             else:
                 raise Exception("Messages {} and {} share the same key!"
                                 .format(m.name, id_map[m.msg_id]))
             self.add_member(m)
+        self._add_builtin_members()
+
+    def _add_builtin_members(self):
+        m = Message([
+            {'_encoders': ['*']},
+            {'_decoders': ['*']},
+            {'_id': MAX_USER_ID + 1}], 'decode_error')
+        self.add_member(m)
 
     def add_member(self, mem):
         if not type(mem) in [Message, Enum]:

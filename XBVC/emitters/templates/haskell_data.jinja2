@@ -71,6 +71,7 @@ data Dispatcher = Dispatcher
   {% for msg in messages %}
     {%if loop.index > 1%}  ,{%else %}   {% endif %} {{msg.camel_name}} :: (IORef (Int -> {{msg.pascal_name}} -> IO ()))
   {% endfor %}
+  , decodeErrorFound :: IORef (IO ())
   }
 
 {# Below this is the core code #}
@@ -134,7 +135,7 @@ addCallbackWithStateAndContext msgType func state ctx dispatcher = writeIORef (m
   where
     func' = \i m -> do
       modifyMVar_ state $ \stateLocal -> func i m stateLocal ctx
- 
+
 
 data XBVCPacket = Packet
                 { msgType :: Int

@@ -329,6 +329,7 @@ static void _default_handler(void *msg)
 {% for msg in dec_msgs %}
 void xbvc_handle_{{msg.name}}(struct x_{{msg.name}} *msg) __attribute__((weak, alias("_default_handler")));
 {% endfor %}
+void xbvc_handle_decode_error_found() __attribute__((weak, alias("_default_handler")));
 
 /* TODO: Think about moving all autogen sections to their own file */
 static void xbvc_handle_packet(uint8_t *ib, int len)
@@ -339,7 +340,7 @@ static void xbvc_handle_packet(uint8_t *ib, int len)
     ret = xbvc_decode_message(ib, &env, len);
 
     if (ret)
-        return;
+        xbvc_handle_decode_error_found();
 
     switch (env.msg_type) {
 	{% for msg in dec_msgs %}

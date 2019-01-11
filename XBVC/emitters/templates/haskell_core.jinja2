@@ -24,11 +24,13 @@ newDispatcher = do
   {% for msg in messages %}
     {{msg.camel_name}} <- newIORef $ standIn "{{msg.camel_name}}"
   {% endfor %}
+    decodeErrorFound <- newIORef $ return ()
 
     return $ Dispatcher {
   {% for line in msg_name_list %}
         {{line}}
   {% endfor %}
+        , decodeErrorFound
     }
     where
         standIn str _ msg = do
@@ -95,6 +97,14 @@ dispatch dispatcher packet =
             putMVar (responseMap dispatcher) responses
 
 
+decodePacket :: BS.ByteString -> Either String XBVCPacket
+decodePacket bs = case Cobs.decode bs of
+                    Left err -> Left err
+                    Right uncobs -> case deserialize uncobs of
+                        Nothing -> Left "Bitvec decode error"
+                        Just pkt -> Right pkt
+
+
 processData :: BS.ByteString
        -> XBVCDispatcher
        -> IO (BS.ByteString)
@@ -102,15 +112,13 @@ processData pkt dispatcher = do
   case frameEnd of
     False -> return pkt
     True -> do
-      case Cobs.decode pkt of
-        Left err -> do
-          putStrLn err
-          return BS.empty
-        Right bitvec -> do
-          case deserialize bitvec of
-            Nothing -> putStrLn "Decode error"
-            Just packet -> dispatch dispatcher packet
-          return BS.empty
+        case decodePacket pkt of
+            Left err -> do
+                putStrLn err
+                decodeCB <- readIORef $ decodeErrorFound $ callbacks dispatcher
+                decodeCB
+            Right packet -> dispatch dispatcher packet
+        return BS.empty
   where
     frameEnd = if BS.null pkt
                then False
