@@ -118,7 +118,6 @@ processData pkt dispatcher = do
   case frameEnd of
     False -> return $ Right pkt
     True -> do
-        putStrLn $ "Incoming packet: " ++ (show (BS.unpack pkt))
         case decodePacket pkt of
             Left err -> do
                 putStrLn err
