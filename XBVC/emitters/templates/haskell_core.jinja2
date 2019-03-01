@@ -123,14 +123,14 @@ processData pkt dispatcher = do
                 putStrLn err
                 decodeCB <- readIORef $ decodeErrorFound $ callbacks dispatcher
                 decodeCB
-                return $ Left $ errPreppend ++ err
+                return $ Left $ errPrepend ++ err
             Right packet -> do
                 errM <- dispatch dispatcher packet
                 case errM of
-                    Just err -> return $ Left $ errPreppend ++ err
+                    Just err -> return $ Left $ errPrepend ++ err
                     Nothing -> return $ Right BS.empty
   where
     frameEnd = if BS.null pkt
                then False
                else ((BS.last pkt) == (0 :: Word8))
-    errPreppend = "Bad Packet: " ++ show (BS.unpack pkt) ++ " - "
+    errPrepend = "Bad Packet: " ++ show (BS.unpack pkt) ++ " - "
