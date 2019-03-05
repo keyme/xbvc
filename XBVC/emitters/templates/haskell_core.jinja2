@@ -83,20 +83,24 @@ xbvcSendWithResponse sendChannel dispatcher msg rID timeLimit = do
         respMap = responseMap dispatcher
 
 
-dispatch :: XBVCDispatcher -> XBVCPacket -> IO ()
+dispatch :: XBVCDispatcher -> XBVCPacket -> IO (Maybe String)
 dispatch dispatcher packet =
     if respID packet == 0
         then do
             _ <- forkIO $ call (callbacks dispatcher) packet
-            return ()
+            return Nothing
         else do
             responses <- takeMVar $ responseMap dispatcher
-            case Map.lookup (respID packet) responses of
-                Nothing -> do
-                    putStrLn "Got response for a message we don't remember sending"
-                    putStrLn $ "Unexpected response was " ++ (show packet)
-                Just mvar -> putMVar mvar (Just packet)
+            result <- case Map.lookup (respID packet) responses of
+                Nothing ->
+                    return $ Just $
+                        "Got response for a message we don't remember sending. "
+                        ++ "Unexpected response was " ++ (show packet)
+                Just mvar -> do
+                    putMVar mvar (Just packet)
+                    return Nothing
             putMVar (responseMap dispatcher) responses
+            return result
 
 
 decodePacket :: BS.ByteString -> Either String XBVCPacket
@@ -109,19 +113,24 @@ decodePacket bs = case Cobs.decode bs of
 
 processData :: BS.ByteString
        -> XBVCDispatcher
-       -> IO (BS.ByteString)
+       -> IO (Either String BS.ByteString)
 processData pkt dispatcher = do
   case frameEnd of
-    False -> return pkt
+    False -> return $ Right pkt
     True -> do
         case decodePacket pkt of
             Left err -> do
                 putStrLn err
                 decodeCB <- readIORef $ decodeErrorFound $ callbacks dispatcher
                 decodeCB
-            Right packet -> dispatch dispatcher packet
-        return BS.empty
+                return $ Left $ errPrepend ++ err
+            Right packet -> do
+                errM <- dispatch dispatcher packet
+                case errM of
+                    Just err -> return $ Left $ errPrepend ++ err
+                    Nothing -> return $ Right BS.empty
   where
     frameEnd = if BS.null pkt
                then False
                else ((BS.last pkt) == (0 :: Word8))
+    errPrepend = "Bad Packet: " ++ show (BS.unpack pkt) ++ " - "
