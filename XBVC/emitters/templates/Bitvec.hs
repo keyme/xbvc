@@ -48,12 +48,25 @@ import qualified Data.ByteString as BS
 import Data.Bits
 import Data.Word
 
+-- These functions use StateT monad so decoding can be done in
+-- a do block without explicitely passing the resulting bytestring
+-- from the output of one action to the input of the next.
+
+-- | Makes an instance of StateT to be used to decode
+-- bit vectors inside of do blocks.
+-- StateT BS.ByteString Maybe a =
+--     { runST :: BS.ByteString -> Maybe (BS.ByteString, a) }
+-- Use StateT instead of State because the result is a monad
 decodeST :: (Integral a) => StateT BS.ByteString Maybe a
 decodeST = StateT decode
 
+-- | An instance of StateT to be used when decoding floats
 decodeFloatST :: StateT BS.ByteString Maybe Float
 decodeFloatST = StateT Bitvec.decodeFloat
 
+-- | Helper function for decoding a list of finite list of
+-- values from a byte string given the decode function and the
+-- length of the list.
 decodeListOfST :: (BS.ByteString -> Maybe (a, BS.ByteString))
                -> Int
                -> StateT BS.ByteString Maybe [a]
@@ -61,19 +74,37 @@ decodeListOfST f n = StateT decodeListOfST'
     where
         decodeListOfST' bs = decodeListOf bs f n
 
+-- | Function used to decode a list of a given length of integral
+-- values from a bytestring using the StateT monad
 decodeListST :: (Integral a) => Int -> StateT BS.ByteString Maybe [a]
 decodeListST = decodeListOfST decode
 
+-- | Function used to decode a list of a given length of float values
+-- from a bytestring using the StateT monad
 decodeFloatListST :: Int -> StateT BS.ByteString Maybe [Float]
 decodeFloatListST = decodeListOfST Bitvec.decodeFloat
 
+-- | Function used to decode what should be the last portion of the
+-- bytestring using the StateT. If the bytestring isn't empty after
+-- the value was decoded will return Nothing (decode failed)
 decodeSTUntilEmpty :: StateT BS.ByteString Maybe a -> BS.ByteString -> Maybe a
 decodeSTUntilEmpty stateT = evalStateT stateT'
     where stateT' = do
+                        -- example of using the StateT instances
+                        -- get the decoded value
                         res <- stateT
+                        -- StateT takes care of passing resulting ByteString
+                        -- Checks if the ByteString is null, if not returns
+                        -- nothing which will short circuit the do because
+                        -- of the Maybe monad
                         endDecode
+                        -- only returns this value if the stateT isn't Nothing
+                        -- and endDecode isn't Nothing
                         return res
 
+-- | StateT instance of the function that checks that the ByteString
+-- has been completely decoded. Type matches other decode types so it
+-- can be used with the other decode functions.
 endDecode :: StateT BS.ByteString Maybe ()
 endDecode = StateT endS'
     where
@@ -81,32 +112,55 @@ endDecode = StateT endS'
             | BS.null bs = Just ((), BS.empty)
             | otherwise = Nothing
 
+-- | Helper function for checking if the ByteString has ended
+-- Can't be used in the StateT monad
 justOnEnd :: BS.ByteString -> a -> Maybe a
 justOnEnd bs a
     | BS.null bs = Just a
     | otherwise = Nothing
 
+-- Since encode should never fail we use State instead of StateT
+-- because we don't need an internal Maybe monad. The State instance
+-- uses type unit because there is no values that matter when encoding,
+-- just the new bytestring.
+
+-- | Function to apply value to the State instance of the encode
+-- function so we can use the do block when encoding bitvectors.
+-- Since this accumulates we don't need a second return type
+-- so that is set to ()
 encodeS :: (Integral a) => a -> State BS.ByteString ()
+-- state is a helper constructor
+-- wrap to return a () to match state types
 encodeS a = state $ \bs -> ((), BS.append bs (encode a))
 
+-- | Function to apply float value to the State instance of the
+-- encodeFloat function so we can use the
+-- do block when encoding bitvectors
 encodeFloatS :: Float -> State BS.ByteString ()
 encodeFloatS a = state $ \bs -> ((), BS.append bs (Bitvec.encodeFloat a))
 
+-- | Helper function to encode a list of into bytestring given the encode
+-- function and the number of items to be encoded.
 encodeListOfS :: (a -> State BS.ByteString ()) -> Int -> [a] -> State BS.ByteString ()
+-- Can just use basic monad map fuction because of State type
 encodeListOfS f n l = mapM_ f list
     where
         list = take n l
 
+-- | Encodes a list of integers given the number that should be encoded
 encodeListS :: (Integral a) => Int -> [a] -> State BS.ByteString ()
 encodeListS = encodeListOfS encodeS
 
+-- | Encodes a list of floats given the number that should be encoded
 encodeFloatListS :: Int -> [Float] -> State BS.ByteString ()
 encodeFloatListS = encodeListOfS encodeFloatS
 
+-- | Helper function to init an empty ByteString
 encodeSNew :: State BS.ByteString () -> BS.ByteString
 encodeSNew s = execState s BS.empty
 
 
+-- | Turns a float into a list of digits
 fracDigits' :: Float -> [Int]
 fracDigits' 0 = []
 fracDigits' f = [firstDigit] ++ fracDigits' remainder
@@ -122,6 +176,7 @@ fracDigits :: Float -> [Int]
 fracDigits 0 = [0]
 fracDigits f = fracDigits' $ abs f
 
+-- | Turns an integer value into a list of digits
 intDigits' :: Integral a => a -> [Int]
 intDigits' 0 = []
 intDigits' n = firstDigit : intDigits' q
@@ -248,8 +303,12 @@ decode bs = case unconsEBV bs of
 decodeListOf :: BS.ByteString -> (BS.ByteString -> Maybe (a, BS.ByteString)) -> Int -> Maybe ([a], BS.ByteString)
 decodeListOf bs _ 0 = Just ([], bs)
 decodeListOf bs f count = runStateT (do
+    -- example of using the StateT functions to decode
+    -- decodes the first value when runStateT passes the bs into StateT f
     val <- StateT f
+    -- recursively decode the rest of the list
     rest <- decodeListOfST f (count - 1)
+    -- return the head and the rest concatted together
     return $ val : rest) bs
 
 -- | Given a bytestring and a number, attempts to decode a list of
