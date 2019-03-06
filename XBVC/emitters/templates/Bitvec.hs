@@ -155,7 +155,8 @@ encodeListS = encodeListOfS encodeS
 encodeFloatListS :: Int -> [Float] -> State BS.ByteString ()
 encodeFloatListS = encodeListOfS encodeFloatS
 
--- | Helper function to init an empty ByteString
+-- | Helper function to init an empty ByteString and run
+-- the encode states to produce an encoded bytestring
 encodeSNew :: State BS.ByteString () -> BS.ByteString
 encodeSNew s = execState s BS.empty
 
