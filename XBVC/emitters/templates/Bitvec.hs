@@ -49,7 +49,7 @@ import Data.Bits
 import Data.Word
 
 -- These functions use StateT monad so decoding can be done in
--- a do block without explicitely passing the resulting bytestring
+-- a do block without explicitely passing the resulting ByteString
 -- from the output of one action to the input of the next.
 
 -- | Makes an instance of StateT to be used to decode
@@ -75,17 +75,17 @@ decodeListOfST f n = StateT decodeListOfST'
         decodeListOfST' bs = decodeListOf bs f n
 
 -- | Function used to decode a list of a given length of integral
--- values from a bytestring using the StateT monad
+-- values from a ByteString using the StateT monad
 decodeListST :: (Integral a) => Int -> StateT BS.ByteString Maybe [a]
 decodeListST = decodeListOfST decode
 
 -- | Function used to decode a list of a given length of float values
--- from a bytestring using the StateT monad
+-- from a ByteString using the StateT monad
 decodeFloatListST :: Int -> StateT BS.ByteString Maybe [Float]
 decodeFloatListST = decodeListOfST Bitvec.decodeFloat
 
 -- | Function used to decode what should be the last portion of the
--- bytestring using the StateT. If the bytestring isn't empty after
+-- ByteString using the StateT. If the ByteString isn't empty after
 -- the value was decoded will return Nothing (decode failed)
 decodeSTUntilEmpty :: StateT BS.ByteString Maybe a -> BS.ByteString -> Maybe a
 decodeSTUntilEmpty stateT = evalStateT stateT'
@@ -122,7 +122,7 @@ justOnEnd bs a
 -- Since encode should never fail we use State instead of StateT
 -- because we don't need an internal Maybe monad. The State instance
 -- uses type unit because there is no values that matter when encoding,
--- just the new bytestring.
+-- just the new ByteString.
 
 -- | Function to apply value to the State instance of the encode
 -- function so we can use the do block when encoding bitvectors.
@@ -139,7 +139,7 @@ encodeS a = state $ \bs -> ((), BS.append bs (encode a))
 encodeFloatS :: Float -> State BS.ByteString ()
 encodeFloatS a = state $ \bs -> ((), BS.append bs (Bitvec.encodeFloat a))
 
--- | Helper function to encode a list of into bytestring given the encode
+-- | Helper function to encode a list of into ByteString given the encode
 -- function and the number of items to be encoded.
 encodeListOfS :: (a -> State BS.ByteString ()) -> Int -> [a] -> State BS.ByteString ()
 -- Can just use basic monad map fuction because of State type
@@ -156,7 +156,7 @@ encodeFloatListS :: Int -> [Float] -> State BS.ByteString ()
 encodeFloatListS = encodeListOfS encodeFloatS
 
 -- | Helper function to init an empty ByteString and run
--- the encode states to produce an encoded bytestring
+-- the encode states to produce an encoded ByteString
 encodeSNew :: State BS.ByteString () -> BS.ByteString
 encodeSNew s = execState s BS.empty
 
@@ -229,7 +229,7 @@ encodeFloat f = BS.concat [signEnc, wholeEnc, fracEnc]
     pairs = zip decimals magnitudeList
     fracEnc = encode $ reconstitute pairs
 
--- | Decode an EBV (stored in a bytestring) into a floating point
+-- | Decode an EBV (stored in a ByteString) into a floating point
 -- number and any remaining bytes
 decodeFloat :: BS.ByteString -> Maybe (Float, BS.ByteString)
 decodeFloat = runStateT $ do
@@ -243,7 +243,7 @@ decodeFloat = runStateT $ do
       result = sm * (wholeFlt + fracFlt) :: Float
   return result
 
--- | Encodes an integral as an extensible bit vector represented by a bytestring
+-- | Encodes an integral as an extensible bit vector represented by a ByteString
 encode :: (Integral a) => a -> BS.ByteString
 encode 0 = BS.singleton 0
 encode n = BS.cons encodedNum (encode quotient)
@@ -312,12 +312,12 @@ decodeListOf bs f count = runStateT (do
     -- return the head and the rest concatted together
     return $ val : rest) bs
 
--- | Given a bytestring and a number, attempts to decode a list of
+-- | Given a ByteString and a number, attempts to decode a list of
 -- numbers. Returns an option of the list and any remaining data.
 decodeList :: (Integral a) => BS.ByteString -> Int -> Maybe ([a], BS.ByteString)
 decodeList bs count = decodeListOf bs decode count
 
--- | Given a bytestring and a number, attempts to decode a list of
+-- | Given a ByteString and a number, attempts to decode a list of
 -- floating point numbers (length == number). Returns an option of the
 -- list and any remaining data
 decodeFloatList :: BS.ByteString -> Int -> Maybe([Float], BS.ByteString)
