@@ -6,6 +6,8 @@ EMITTER_NAME = 'haskell'
 _TYPE_MAP = {
     'f32': 'Float',
     'f64': 'Double',
+    'u64': 'Word64',
+    's64': 'Int64',
     'u32': 'Word32',
     's32': 'Int32',
     'u16': 'Word16',
@@ -17,6 +19,8 @@ _TYPE_MAP = {
 _ENC_MAP = {
     'f32': 'Bitvec.encodeFloatS',
     'f64': 'encodeFloat',
+    'u64': 'Bitvec.encodeS',
+    's64': 'Bitvec.encodeS',
     'u32': 'Bitvec.encodeS',
     's32': 'Bitvec.encodeS',
     'u16': 'Bitvec.encodeS',
@@ -28,6 +32,8 @@ _ENC_MAP = {
 _DEC_MAP = {
     'f32': 'Bitvec.decodeFloatST',
     'f64': 'decodeFloat',
+    'u64': 'Bitvec.decodeST',
+    's64': 'Bitvec.decodeST',
     'u32': 'Bitvec.decodeST',
     's32': 'Bitvec.decodeST',
     'u16': 'Bitvec.decodeST',
@@ -39,6 +45,8 @@ _DEC_MAP = {
 _LIST_DEC_MAP = {
     'f32': 'Bitvec.decodeFloatListST',
     'f64': 'decodeFloatList',
+    'u64': 'Bitvec.decodeListST',
+    's64': 'Bitvec.decodeListST',
     'u32': 'Bitvec.decodeListST',
     's32': 'Bitvec.decodeListST',
     'u16': 'Bitvec.decodeListST',

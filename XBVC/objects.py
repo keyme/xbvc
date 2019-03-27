@@ -1,6 +1,8 @@
 import yaml
 
 _type_list = [
+    'u64',
+    's64',
     'u32',
     's32',
     'u16',

@@ -2,6 +2,8 @@ from XBVC.objects import HashableNameID
 from XBVC.emitters.EmitterBase import SourceFile, EmitterBase
 
 type_map = {
+    'u64': 'uint64_t',
+    's64': 'int64_t',
     'u32': 'uint32_t',
     's32': 'int32_t',
     'u16': 'uint16_t',
