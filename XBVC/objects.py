@@ -189,7 +189,7 @@ class CommSpec(object):
 
     def _parse_file(self, filename):
         with open(filename, 'rb') as xf:
-            data = yaml.load(xf)
+            data = yaml.load(xf, Loader=yaml.FullLoader)
 
         id_map = {}
         enums = data.get('enumerations', {})

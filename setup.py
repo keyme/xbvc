@@ -35,6 +35,6 @@ setup(
     },
     install_requires=[
           'pyyaml >= 3.10',
-          'jinja2 == 2.7.2',
+          'jinja2 >= 2.10.0',
     ],
 )
