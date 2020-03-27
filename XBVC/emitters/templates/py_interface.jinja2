@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import cobs
 import ctypes
 from threading import Event, Thread, Lock
@@ -6,6 +7,8 @@ from queue import Queue
 import time
 
 _ctypes_map = {
+    'u64': ctypes.c_uint64,
+    's64': ctypes.c_int64,
     'u32': ctypes.c_uint32,
     's32': ctypes.c_int32,
     'u16': ctypes.c_uint16,
@@ -18,8 +21,45 @@ _ctypes_map = {
 {{msg.name.upper()}}_ID = {{msg.msg_id}}
 {% endfor %}
 
+MAX_PRECISION = 8
 
-def _encode_integer_to_bitvec(n, d_type):
+def _encode_float(n, max_precision=MAX_PRECISION):
+    work = n
+    whole = int(work)
+    work = work - whole
+    work = abs(work)
+
+    mul = 1
+    frac = 0
+    while max_precision and work > 0:
+        work *= 10
+        frac += int(work) * mul
+        work -= int(work)
+        max_precision -= 1
+        mul *= 10
+
+    return _encode_to_bitvec(whole, 's32') + _encode_to_bitvec(frac, 'u32')
+
+
+def _decode_float(lst):
+    whole, lst = _decode_from_bitvec(lst, 's32')
+    frac, lst = _decode_from_bitvec(lst, 'u32')
+    res_w = float(whole)
+    res_f = 0.0
+
+    mul = 10
+    while frac > 0:
+        res_f += (frac % 10) / mul
+        frac = frac // 10
+        mul *= 10
+
+    if res_w < 0:
+        res_f *= -1
+
+    return (res_w + res_f), lst
+
+
+def _encode_to_bitvec(n, d_type):
     """
     Returns a list containing the encoded integer
     @param n the integer to encode
@@ -32,11 +72,18 @@ def _encode_integer_to_bitvec(n, d_type):
 
     dst = []
 
-    while n > 0:
-        v = n % 128
-        n /= 128
+    if d_type in ('s64', 'u64'):
+        cast_fn = ctypes.c_uint64
+    else:
+        cast_fn = ctypes.c_uint32
 
-        if n > 0:
+    cast_n = cast_fn(n).value
+
+    while cast_n > 0:
+        v = cast_n % 128
+        cast_n = cast_n // 128
+
+        if cast_n > 0:
             v |= 0x80
 
         dst.append(v)
@@ -47,7 +94,7 @@ def _encode_integer_to_bitvec(n, d_type):
 
     return dst
 
-def _decode_bitvec_from_list(lst, d_type):
+def _decode_from_bitvec(lst, d_type):
     """
     Returns a tuple containing the first decoded integer and
     the remainder of the input list
@@ -89,12 +136,18 @@ class _XBVCMessage(object):
 
         for m in self._key:
             if m['len'] == 1:
-                v, ls = _decode_bitvec_from_list(ls, m['type'])
+                if m['type'].startswith('f'):
+                    v, ls = _decode_float(ls)
+                else:
+                    v, ls = _decode_from_bitvec(ls, m['type'])
 
             else:
                 v = []
                 for f in range(m['len']):
-                    vtemp, ls = _decode_bitvec_from_list(ls, m['type'])
+                    if m['type'].startswith('f'):
+                        vtemp, ls = _decode_float(ls)
+                    else:
+                        vtemp, ls = _decode_from_bitvec(ls, m['type'])
                     v.append(vtemp)
             self.__dict__[m['name']] = v
 
@@ -104,24 +157,32 @@ class _XBVCMessage(object):
         #Encode the message type
         for m in self._key:
             if m['len'] == 1:
-                ls.extend(_encode_integer_to_bitvec(self.__dict__[m['name']], m['type']))
+                if m['type'].startswith('f'):
+                    ls.extend(_encode_float(self.__dict__[m['name']]))
+                else:
+                    ls.extend(_encode_to_bitvec(self.__dict__[m['name']], m['type']))
             else:
                 for f in range(m['len']):
-                    ls.extend(_encode_integer_to_bitvec(self.__dict__[m['name']][f], m['type']))
+                    if m['type'].startswith('f'):
+                        ls.extend(_encode_float(self.__dict__[m['name']][f]))
+                    else:
+                        ls.extend(_encode_to_bitvec(self.__dict__[m['name']][f], m['type']))
 
         return ls
 
 
 {% for msg in messages%}
 class {{msg.name}}(_XBVCMessage):
-    def __init__(self, msg_pkt=None):
+    def __init__(self, msg_pkt=None, *args, **kwargs):
         super({{msg.name}}, self).__init__()
         self.msg_id = {{msg.msg_id}}
         {% for m in msg.members %}
       {% if m.d_len == 1 %}
-        self.{{m.name}} = 0
+        self.{{m.name}} = kwargs.get('{{m.name}}', 0)
       {% else %}
-        self.{{m.name}} = [0 for x in range({{m.d_len}})]
+        if '{{m.name}}' in kwargs and type(kwargs['{{m.name}}']) not in (list, tuple):
+            raise TypeError("{} must be a list or tuple, not {}".format('{{m.name}}', type(kwargs['{{m.name}}'])))
+        self.{{m.name}} = kwargs.get('{{m.name}}', [0 for x in range({{m.d_len}})])
       {% endif %}
         {% endfor %}
 
@@ -200,7 +261,7 @@ class XBVCEdgePoint(object):
             else:
                 enc_envelope = cobs.cobs_decode(buf)
 
-                msg_id, enc_msg = _decode_bitvec_from_list(enc_envelope, 'u32')
+                msg_id, enc_msg = _decode_from_bitvec(enc_envelope, 'u32')
 
                 m = _msg_map[msg_id](enc_msg)
                 self._publish_msg(m)
@@ -253,7 +314,7 @@ class XBVCEdgePoint(object):
             with self._sync_q.mutex:
                 self._sync_q.queue.clear()
 
-        env = _encode_integer_to_bitvec(msg.msg_id, 'u32')
+        env = _encode_to_bitvec(msg.msg_id, 'u32')
 
         env.extend(msg.encode())
 
@@ -338,4 +399,3 @@ if __name__ == '__main__':
     print(ep.send(msg, msg.msg_id))
 
     ep.stop()
-
