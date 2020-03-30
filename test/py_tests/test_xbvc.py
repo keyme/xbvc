@@ -5,17 +5,17 @@ import xbvc_py as xp
 
 fluff_ary = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
 
-gr = xp.get_response(Error=123,
-                     Target=456,
-                     Index=-32,
-                     Foo=128,
-                     Result=-45,
-                     Bar=5,
-                     Version=0.07,
-                     FloatList=[1.1, 2.2, 3.3, 4.4, 5.5])
+gr = xp.GetResponse(Error=123,
+                    Target=456,
+                    Index=-32,
+                    Foo=128,
+                    Result=-45,
+                    Bar=5,
+                    Version=0.07,
+                    FloatList=[1.1, 2.2, 3.3, 4.4, 5.5])
 
 lst = gr.encode()
-new = xp.get_response(msg_pkt=lst)
+new = xp.GetResponse(msg_pkt=lst)
 
 assert gr.Error == new.Error
 assert gr.Target == new.Target

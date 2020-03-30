@@ -23,7 +23,12 @@ _ctypes_map = {
 
 MAX_PRECISION = 8
 
+
 def _encode_float(n, max_precision=MAX_PRECISION):
+    """Encodes a floating point number to the XBVC Specificiation.
+    Returns a list containing the newly encoded data.
+
+    """
     work = n
     whole = int(work)
     work = work - whole
@@ -42,6 +47,12 @@ def _encode_float(n, max_precision=MAX_PRECISION):
 
 
 def _decode_float(lst):
+    """Decodes a floating point number from a list of XBVC encoded
+    integers.
+
+    Returns a tuple of the floating point number, and any remaining data
+
+    """
     whole, lst = _decode_from_bitvec(lst, 's32')
     frac, lst = _decode_from_bitvec(lst, 'u32')
     res_w = float(whole)
@@ -94,6 +105,7 @@ def _encode_to_bitvec(n, d_type):
 
     return dst
 
+
 def _decode_from_bitvec(lst, d_type):
     """
     Returns a tuple containing the first decoded integer and
@@ -126,6 +138,7 @@ def _decode_from_bitvec(lst, d_type):
     #Recast the integer as the appropriate type and return it and the
     #list remainder
     return _ctypes_map[d_type](un_int).value, ls
+
 
 class _XBVCMessage(object):
     def __init__(self):
@@ -172,9 +185,9 @@ class _XBVCMessage(object):
 
 
 {% for msg in messages%}
-class {{msg.name}}(_XBVCMessage):
+class {{msg.pascal_name}}(_XBVCMessage):
     def __init__(self, msg_pkt=None, *args, **kwargs):
-        super({{msg.name}}, self).__init__()
+        super().__init__()
         self.msg_id = {{msg.msg_id}}
         {% for m in msg.members %}
       {% if m.d_len == 1 %}
@@ -206,7 +219,7 @@ class {{msg.name}}(_XBVCMessage):
 #TODO: Message map
 _msg_map = {
     {% for msg in messages %}
-    {{msg.msg_id}}:{{msg.name}},
+    {{msg.msg_id}}:{{msg.pascal_name}},
     {% endfor %}
 }
 
@@ -349,6 +362,7 @@ class XBVCEdgePoint(object):
             self._sync_q.put(msg)
             self._sync_evt.clear()
             self._sync_type = None
+
 
 class XBVCLoopbackEP(XBVCEdgePoint):
     def __init__(self):
