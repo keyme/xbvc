@@ -23,7 +23,7 @@ enum {{enum.name}} {
 {% endfor %}
 
 /* Message Structures */
-{% for msg in msgs | sort %}
+{% for msg in msgs | sort(attribute='msg_id') %}
 struct x_{{msg.name}} {
 	{% for pair in msg.value_pairs %}
 	{{pair['type']}} {{pair['field_name']}};
